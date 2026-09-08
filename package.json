@@ -1,0 +1,35 @@
+{
+  "name": "@skillvault/pcm-core",
+  "version": "1.0.0",
+  "description": "Peripheral Cognitive Mesh (PCM): A biologically inspired agent memory architecture with continuous Ebbinghaus decay, pinned guardrails, and slotted attention.",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "benchmark": "bun run src/evals/architectural-sim.ts",
+    "benchmark:live": "bun run src/evals/live-harness.ts"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "memory",
+    "pcm",
+    "rag",
+    "mem0",
+    "zep",
+    "cognitive-mesh",
+    "ebbinghaus",
+    "embeddings"
+  ],
+  "author": "Anthony Lee",
+  "license": "MIT",
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.6.0",
+    "mem0ai": "^3.1.8",
+    "@getzep/zep-cloud": "^2.0.2"
+  }
+}
