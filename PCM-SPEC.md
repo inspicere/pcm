@@ -223,13 +223,13 @@ PCM was evaluated across three distinct benchmarking paradigms:
 
 Evaluating candidate precision, decay attenuation, and token economy across 6 golden evaluation scenarios (`bun run benchmark`):
 
-| Architecture | Hit Rate @ 1 | Hit Rate @ 3 | MRR | Avg Tokens/Turn | Recall Latency (p50) | Ingest Latency (p50) | Temporal Contradiction |
+| Architecture | Hit Rate @ 1 | Hit Rate @ 3 | MRR | Tokens/Turn | Recall (p50) | Ingest (p50) | Contradiction |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Peripheral Cognitive Mesh (PCM)** | **100.0%** | **100.0%** | **1.000** | **92 tokens** | **< 30ms** | **< 2ms** | **✅ Resolved (100%)** |
+| **Peripheral Cognitive Mesh (PCM)** | **100.0%** | **100.0%** | **1.000** | **92 tokens** | **< 30ms** | **< 2ms** | **✅ Resolved** |
 | **Temporal Graph (Zep / Graphiti)** | 66.7% | 83.3% | 0.783 | 127 tokens | 155ms – 250ms | 800ms – 1,500ms | ✅ Resolved |
-| **Fact Vector (Mem0)** | 16.7% | 83.3% | 0.478 | 195 tokens | 55ms – 600ms | 800ms – 2,500ms | ❌ Failed (Amnesia) |
+| **Fact Vector (Mem0)** | 16.7% | 83.3% | 0.478 | 195 tokens | 55ms – 600ms | 800ms – 2,500ms | ❌ Amnesia |
 | **Hybrid RAG (Vector + BM25)** | 66.7% | 83.3% | 0.783 | 264 tokens | 45ms – 80ms | 25ms – 50ms | ✅ Resolved |
-| **Naive RAG (Vector Dump)** | 16.7% | 83.3% | 0.478 | 275 tokens | 35ms – 60ms | 20ms – 40ms | ❌ Failed (Amnesia) |
+| **Naive RAG (Vector Dump)** | 16.7% | 83.3% | 0.478 | 275 tokens | 35ms – 60ms | 20ms – 40ms | ❌ Amnesia |
 
 ---
 
@@ -237,11 +237,11 @@ Evaluating candidate precision, decay attenuation, and token economy across 6 go
 
 Executed via real network calls to production endpoints using official client libraries (`bun run benchmark:live`):
 
-| Engine | Write Duration (Wall-Clock) | Recall Latency (Wall-Clock) | Context Tokens | Resolved Contradiction? |
+| Engine | Write Latency | Recall Latency | Context Tokens | Contradiction? |
 | :--- | :---: | :---: | :---: | :---: |
-| **PCM (Local Cognitive Mesh)** | **1.2ms** | **0.8ms** | **69 tokens** | **✅ YES (Bun Pinned)** |
-| **Mem0 Cloud (Live SDK)** | 2,155.5ms | 390.6ms | 12 tokens | ❌ NO (Amnesia) |
-| **Zep Cloud (Live SDK)** | 1,036.9ms | 253.1ms | 18 tokens | ❌ NO (Amnesia) |
+| **PCM (Local Cognitive Mesh)** | **1.2ms** | **0.8ms** | **69 tokens** | **✅ Resolved** |
+| **Mem0 Cloud (Live SDK)** | 2,155.5ms | 390.6ms | 12 tokens | ❌ Amnesia |
+| **Zep Cloud (Live SDK)** | 1,036.9ms | 253.1ms | 18 tokens | ❌ Amnesia |
 
 #### Empirical Takeaways:
 - **Hot-Path Write Invariance**: Mem0 Cloud incurred **2.15 seconds** of latency per turn to execute its write-time fact-extraction prompt. Zep Graphiti took **1.04 seconds**. PCM wrote in **1.2ms** (**1,846x faster** than Mem0 and **888x faster** than Zep), making PCM viable for high-frequency agent tool loops.
@@ -259,7 +259,7 @@ Tested across 4 complex human scenarios (`bun run benchmark:human`):
 3. **Multi-Repo Disambiguation**: Requesting test auth token helpers for `work-api` (Passkey/Scrypt) without cross-contaminating with `client-mobile` (AWS Cognito).
 4. **Critical Human Security Invariant**: Enforcing a strict non-negotiable rule (*"NEVER log raw auth tokens"*).
 
-| Memory System | Avg Accuracy | Helpfulness & Completeness | Security Rule Violations | Avg Context Tokens | Retrieval Latency |
+| Memory System | Accuracy | Helpfulness | Security Violations | Context Tokens | Recall Latency |
 | :--- | :---: | :---: | :---: | :---: | :---: |
 | **PCM (Cognitive Mesh)** | **75.0%** | **87.5%** | **✅ 0 (Safe)** | **162 tokens** | **0.5ms** |
 | **Obsidian (Full Note Context)** | 45.0% | 57.5% | ⚠️ 1 Leaks | 641 tokens | 0.0ms |
