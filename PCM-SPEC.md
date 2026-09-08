@@ -266,6 +266,6 @@ By integrating mathematical Ebbinghaus decay, pinned guardrails, an emergent ass
   title={Peripheral Cognitive Mesh (PCM): A Biologically-Inspired Memory Architecture for Autonomous AI Agents},
   author={SkillVault Engineering},
   year={2026},
-  url={https://github.com/anthonylee991/skillvault}
+  url={https://github.com/anthonylee991/pcm}
 }
 ```
