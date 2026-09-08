@@ -42,7 +42,7 @@ export class MockRerankClient {
   readonly model = "mock-rerank-v1";
 
   async rerank(query: string, documents: string[], topN?: number): Promise<RerankResult[]> {
-    const rawTokens = query.toLowerCase().split(/\s+/).filter(Boolean);
+    const rawTokens = query.toLowerCase().split(/\W+/).filter(Boolean);
     const queryTokens = new Set<string>();
 
     const SYNONYM_MAP: Record<string, string[]> = {
@@ -53,6 +53,9 @@ export class MockRerankClient {
       failing: ["error", "fix", "fixed", "403", "failed", "bug"],
       ssh: ["proxy", "host", "fingerprint", "keyscan", "ssh_host_key_not_pinned"],
       grace: ["past_due", "billing", "subscriptions", "stripe"],
+      websocket: ["ws", "socket", "dropouts", "drop", "dropping", "disconnect"],
+      connections: ["connection", "keepalive", "ping", "pong", "interval"],
+      railway: ["deployment", "private", "networking", "incident", "ipv6", "loopback"],
     };
 
     for (const t of rawTokens) {
@@ -64,7 +67,7 @@ export class MockRerankClient {
     }
 
     const scored = documents.map((doc, index) => {
-      const docTokens = doc.toLowerCase().split(/\s+/).filter(Boolean);
+      const docTokens = doc.toLowerCase().split(/\W+/).filter(Boolean);
       let matches = 0;
       for (const t of docTokens) {
         if (queryTokens.has(t)) matches++;

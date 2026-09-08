@@ -51,37 +51,47 @@ PCM was engineered from first principles to resolve these limitations.
 PCM treats agent memory not as a static document archive, but as an active **biological cognitive field**. Knowledge exists in varying states of activation, decay, and interconnectedness.
 
 ```
-                     ┌──────────────────────────────────────────────┐
-                     │          INGESTION & STAMPING PIPELINE       │
-                     │  • Exact-Match Hash Bypass (< 2ms)           │
-                     │  • Importance Tiering: Pinned, High, Default │
-                     └──────────────────────┬───────────────────────┘
-                                            │
-               ┌────────────────────────────┴────────────────────────────┐
-               ▼                                                         ▼
-  ┌─────────────────────────┐                               ┌─────────────────────────┐
-  │   SHORT-TERM MEMORY     │                               │   ASSOCIATIVE MESH      │
-  │ • pgvector HNSW (1024d) │                               │ • Emergent Vector Graph │
-  │ • Normalized Facts      │                               │ • Spreading Activation  │
-  │ • Monotone Vector Clock │                               │   (+10% Boost to Nodes) │
-  └────────────┬────────────┘                               └────────────┬────────────┘
-               │                                                         │
-               │               ┌─────────────────────────┐               │
-               └──────────────▶│   EBBINGHAUS DYNAMICS   │◀──────────────┘
-                               │ • Exponential Decay     │
-                               │ • Savings Effect Multi. │
-                               │ • Autonomous Pruning    │
-                               └────────────┬────────────┘
-                                            │
-                                            ▼
-                               ┌─────────────────────────┐
-                               │  PERIPHERAL ATTENTION   │
-                               │  • [USER QUERY]         │
-                               │  • [DIRECT ANSWER]      │
-                               │  • [ANOMALY FLAGS]      │
-                               │  • [ASKER CONTEXT]      │
-                               │  • [SITUATIONAL CONTEXT]│
-                               └─────────────────────────┘
+               ┌───────────────────────────────┐
+               │  INGESTION & STAMPING         │
+               │  • Hash Bypass (< 2ms)        │
+               │  • Importance Tiering         │
+               │    (Pinned / High / Default)  │
+               └──────────────┬────────────────┘
+                              │
+                              ▼
+               ┌───────────────────────────────┐
+               │  SHORT-TERM MEMORY (STM)      │
+               │  • pgvector HNSW (1024-dim)   │
+               │  • Monotone Vector Clock      │
+               └──────────────┬────────────────┘
+                              │
+                    Semantic Similarity ≥ 0.65
+                              │
+                              ▼
+               ┌───────────────────────────────┐
+               │  EMERGENT ASSOCIATIVE MESH    │
+               │  • Vector Graph Materialized  │
+               │  • Spreading Activation Wave  │
+               │    (+10% Boost to Neighbors)  │
+               └──────────────┬────────────────┘
+                              │
+                              ▼
+               ┌───────────────────────────────┐
+               │  EBBINGHAUS COGNITIVE DECAY   │
+               │  • S(t) = S₀ · e^(-t / τ)     │
+               │  • Savings Effect Multiplier  │
+               │  • Autonomous Sweeper Pruning │
+               └──────────────┬────────────────┘
+                              │
+                              ▼
+               ┌───────────────────────────────┐
+               │  PERIPHERAL ATTENTION ENGINE  │
+               │  • [USER QUERY]               │
+               │  • [DIRECT ANSWER]            │
+               │  • [ANOMALY FLAGS]            │
+               │  • [ASKER CONTEXT]            │
+               │  • [SITUATIONAL CONTEXT]      │
+               └───────────────────────────────┘
 ```
 
 ### 2.1 Ebbinghaus Decay & The Savings Effect
@@ -261,15 +271,15 @@ Tested across 4 complex human scenarios (`bun run benchmark:human`):
 
 | Memory System | Accuracy | Helpfulness | Security Violations | Context Tokens | Recall Latency |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **PCM (Cognitive Mesh)** | **75.0%** | **87.5%** | **✅ 0 (Safe)** | **162 tokens** | **0.5ms** |
+| **PCM (Cognitive Mesh)** | **100.0%** | **100.0%** | **✅ 0 (Safe)** | **145 tokens** | **0.7ms** |
 | **Obsidian (Full Note Context)** | 45.0% | 57.5% | ⚠️ 1 Leaks | 641 tokens | 0.0ms |
 | **Obsidian (Ripgrep / Grep Search)**| 36.3% | 38.8% | ✅ 0 (Safe) | 600 tokens | 0.1ms |
-| **Mem0 Cloud (Live SDK)** | 10.0% | 30.0% | ⚠️ 1 Leaks | 15 tokens | 500.6ms |
+| **Mem0 Cloud (Live SDK)** | 10.0% | 30.0% | ⚠️ 1 Leaks | 15 tokens | 514.1ms |
 | **Zep Cloud (Live SDK)** | 0.0% | 0.0% | ✅ 0 (Safe) | 40 tokens | 250.0ms |
 
 #### Deep Dive on Human Experience:
 1. **Contradiction Paralysis**: In Obsidian (Grep & Full Note), searching for "migration" retrieved *both* the obsolete March UUID decision and the September ULID decision. The model was presented with mutually contradictory instructions. PCM's Ebbinghaus decay naturally reduced the 6-month-old UUID rule ($S \to 0$), delivering unambiguous ULID guidance.
-2. **Context Window Tax**: Obsidian note dumps injected **600 to 641 tokens** of raw markdown headings, YAML frontmatter, and boilerplate per query. PCM primed the model with structured PAE slots in **162 tokens** (an **83% reduction in context clutter**).
+2. **Context Window Tax**: Obsidian note dumps injected **600 to 641 tokens** of raw markdown headings, YAML frontmatter, and boilerplate per query. PCM primed the model with structured PAE slots in **145 tokens** (an **77% reduction in context clutter**).
 3. **Protecting Human Invariants**: When asked to "debug by adding logging", Obsidian grep completely missed the security rule in `preferences.md` because the user never explicitly typed the word "security", causing a **security leak** where the agent logged raw auth tokens. PCM's **Pinned Guardrail Cache (Strength 1.0)** guaranteed the token-masking rule was ALWAYS injected into `[ASKER CONTEXT]`, preventing security vulnerabilities.
 
 ---

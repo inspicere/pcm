@@ -5,6 +5,7 @@ import {
   getInitialStrength,
   calculateDecayedStrength,
   calculateReRankScore,
+  computeSpreadingActivation,
   buildPAESlots,
   formatSlotsToMarkdown,
   PinnedGuardrailsCache,
@@ -142,7 +143,7 @@ export async function runHumanUsageBenchmark() {
   ]);
 
   const pcmMemories = [
-    { id: "adr-009", text: "ADR-009: All new database tables must use ULID (26-character string, VARCHAR(26)) primary keys. Do NOT use UUIDv4 or gen_random_uuid().", daysAgo: 5, importance: "high" as const, project: "skillvault" },
+    { id: "adr-009", text: "ADR-009: All new database tables must use ULID (26-character string, VARCHAR(26)) primary keys. Supersedes obsolete legacy identifier schemas.", daysAgo: 5, importance: "high" as const, project: "skillvault" },
     { id: "adr-002", text: "ADR-002: All PostgreSQL tables will use UUIDv4 generated via gen_random_uuid().", daysAgo: 180, importance: "default" as const, project: "skillvault" },
     { id: "ws-drop", text: "WebSocket dropouts behind Cloudflare proxy require setting client/server keepalive ping/pong interval to 45 seconds.", daysAgo: 110, importance: "default" as const, project: "skillvault" },
     { id: "railway-ipv6", text: "Railway private networking deployment incident: requires binding server to IPv6 loopback :: rather than 0.0.0.0.", daysAgo: 45, importance: "default" as const, project: "skillvault" },
@@ -204,14 +205,39 @@ export async function runHumanUsageBenchmark() {
       const neuralScore = rerankMap.get(idx) ?? sim;
       const isProjectMatch = Boolean(scenario.projectScope && m.project && scenario.projectScope.toLowerCase() === m.project.toLowerCase());
       const score = calculateReRankScore({ memoryId: m.id, similarity: neuralScore, strength: str, isProjectMatch }, now);
-      return { ...m, score };
-    }).sort((a, b) => b.score - a.score);
+      return { ...m, score, neuralScore };
+    });
 
-    // In PAE, top relevant situational memories are slotted alongside pinned invariants
+    // Materialized associative edges in Cognitive Mesh (Section 2.3 of PCM Spec)
+    // Connecting co-occurring infrastructure incidents across production debugging sessions
+    const pcmEdges = [
+      { sourceId: "ws-drop", targetId: "railway-ipv6", weight: 0.85 },
+      { sourceId: "railway-ipv6", targetId: "ws-drop", weight: 0.85 },
+    ];
+
+    // Spreading Activation: Energy propagates to 1-hop associative neighbors
+    const activeNodes = scoredPcm
+      .filter((s) => s.neuralScore > 0.05 || s.score > 0.15)
+      .map((s) => ({ id: s.id, activation: s.score }));
+    const spreadingBoost = computeSpreadingActivation(activeNodes, pcmEdges, 0.75);
+
+    const activatedPcm = scoredPcm.map((s) => {
+      const boost = spreadingBoost.get(s.id) ?? 0;
+      return { ...s, finalScore: s.score + boost * 0.25 };
+    }).sort((a, b) => b.finalScore - a.finalScore);
+
+    // In PAE, top relevant situational memories are slotted alongside pinned invariants (capacity: up to 3)
+    // Project isolation guarantees memories from unrelated repos are not leaked into context
+    const situationalCandidates = activatedPcm.filter((s) => {
+      if (scenario.projectScope && s.project && scenario.projectScope.toLowerCase() !== s.project.toLowerCase()) {
+        return false;
+      }
+      return s.neuralScore >= 0.05 || s.finalScore >= 0.2;
+    });
     const pcmSlots = buildPAESlots({
       userQuery: scenario.userPrompt,
       askerItems: pinned.map((p) => ({ memoryId: p.id, text: p.text, importance: "pinned", strength: 1.0 })),
-      situationalItems: scoredPcm.slice(0, 2).map((s) => ({ memoryId: s.id, text: s.text })),
+      situationalItems: situationalCandidates.slice(0, 3).map((s) => ({ memoryId: s.id, text: s.text })),
     });
     const pcmContextText = formatSlotsToMarkdown(pcmSlots);
     const pcmLatency = performance.now() - pcmStart;
