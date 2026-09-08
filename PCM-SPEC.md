@@ -271,16 +271,16 @@ Tested across 4 complex human scenarios (`bun run benchmark:human`):
 
 | Memory System | Accuracy | Helpfulness | Security Violations | Context Tokens | Recall Latency |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **PCM (Cognitive Mesh)** | **100.0%** | **100.0%** | **✅ 0 (Safe)** | **145 tokens** | **0.7ms** |
-| **Obsidian (Full Note Context)** | 45.0% | 57.5% | ⚠️ 1 Leaks | 641 tokens | 0.0ms |
-| **Obsidian (Ripgrep / Grep Search)**| 36.3% | 38.8% | ✅ 0 (Safe) | 600 tokens | 0.1ms |
-| **Mem0 Cloud (Live SDK)** | 10.0% | 30.0% | ⚠️ 1 Leaks | 15 tokens | 514.1ms |
-| **Zep Cloud (Live SDK)** | 0.0% | 0.0% | ✅ 0 (Safe) | 40 tokens | 250.0ms |
+| **PCM (Cognitive Mesh)** | **92.5%** | **100.0%** | **✅ 0 (Safe)** | **133 tokens** | **0.4ms** |
+| **Traditional Graph RAG (Kùzu)** | 52.5% | 68.8% | ✅ 0 (Safe) | 72 tokens | 85.1ms |
+| **Obsidian Vault on Disk (Ripgrep)** | 36.3% | 38.8% | ✅ 0 (Safe) | 513 tokens | 0.2ms |
+| **Mem0 Cloud (Live SDK)** | 20.0% | 35.0% | ⚠️ 1 Leaks | 4 tokens | 380.7ms |
+| **Zep Cloud (Live SDK)** | 20.0% | 30.0% | ⚠️ 1 Leaks | 18 tokens | 209.4ms |
 
 #### Deep Dive on Human Experience:
-1. **Contradiction Paralysis**: In Obsidian (Grep & Full Note), searching for "migration" retrieved *both* the obsolete March UUID decision and the September ULID decision. The model was presented with mutually contradictory instructions. PCM's Ebbinghaus decay naturally reduced the 6-month-old UUID rule ($S \to 0$), delivering unambiguous ULID guidance.
-2. **Context Window Tax**: Obsidian note dumps injected **600 to 641 tokens** of raw markdown headings, YAML frontmatter, and boilerplate per query. PCM primed the model with structured PAE slots in **145 tokens** (an **77% reduction in context clutter**).
-3. **Protecting Human Invariants**: When asked to "debug by adding logging", Obsidian grep completely missed the security rule in `preferences.md` because the user never explicitly typed the word "security", causing a **security leak** where the agent logged raw auth tokens. PCM's **Pinned Guardrail Cache (Strength 1.0)** guaranteed the token-masking rule was ALWAYS injected into `[ASKER CONTEXT]`, preventing security vulnerabilities.
+1. **Contradiction Paralysis**: In Obsidian (Grep & Full Note), Mem0, and Traditional Graph RAG, searching for "migration" retrieved *both* the obsolete March UUID decision and the September ULID decision. The model was presented with mutually contradictory instructions. PCM's Ebbinghaus decay naturally reduced the 6-month-old UUID rule ($S \to 0$), delivering unambiguous ULID guidance.
+2. **Context Window Tax**: Obsidian note dumps injected **513 to 641 tokens** of raw markdown headings, YAML frontmatter, and boilerplate per query. PCM primed the model with structured PAE slots in **133 tokens** (a **75% reduction in context clutter**).
+3. **Protecting Human Invariants**: When asked to "debug by adding logging", Obsidian grep, Mem0 Cloud, and Zep Cloud completely missed the security rule in `preferences.md` because the user never explicitly typed the word "security", causing a **security leak** where the agent logged raw auth tokens. PCM's **Pinned Guardrail Cache (Strength 1.0)** guaranteed the token-masking rule was ALWAYS injected into `[ASKER CONTEXT]`, preventing security vulnerabilities.
 
 ---
 
@@ -305,12 +305,13 @@ Evaluated across 10 multi-session conversational scenarios spanning the four can
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
 | **PCM (Cognitive Mesh)** | **85.0%** | **90.0%** | **80.0%** | **85.0%** | **85.0%** | 146 tok |
 | **Standard Semantic RAG** | 57.5% | 78.3% | 56.7% | 67.5% | 17.5% | 45 tok |
+| **Traditional Graph RAG (Kùzu)** | 52.5% | 75.0% | 45.0% | 70.0% | 20.0% | 72 tok |
 | **Obsidian / Lexical Grep** | 52.0% | 76.7% | 43.3% | 65.0% | 15.0% | 39 tok |
 
 #### Empirical Insights:
-- **Single-Hop Parity**: Standard Vector RAG performs well on simple static factoids (78.3%), which explains why conventional memory tools advertise high accuracy on basic QA datasets.
-- **The Temporal Cliff**: When developer decisions evolve over time (e.g. migrating React Router to TanStack Router, or ECS to Railway), Standard RAG drops to 56.7% because older, word-dense chunks compete with newer decisions. PCM's Ebbinghaus decay maintains an 80.0% success rate.
-- **The Invariant Blindspot**: When evaluating implicit security rules without trigger keywords, Standard RAG and Lexical search fail completely (15–17%), whereas PCM's Pinned Guardrails guarantee policy compliance.
+- **Single-Hop Parity**: Standard Vector RAG (78.3%) and Graph RAG (75.0%) perform well on simple static factoids, which explains why conventional memory tools advertise high accuracy on basic QA datasets.
+- **The Temporal Cliff**: When developer decisions evolve over time (e.g. migrating React Router to TanStack Router, or ECS to Railway), Standard RAG drops to 56.7% and Graph RAG drops to 45.0% because older, word-dense chunks compete with newer decisions. PCM's Ebbinghaus decay maintains an 80.0% success rate.
+- **The Invariant Blindspot**: When evaluating implicit security rules without trigger keywords, Standard RAG, Graph RAG, and Lexical search fail completely (15–20%), whereas PCM's Pinned Guardrails guarantee policy compliance.
 
 ---
 

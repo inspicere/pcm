@@ -9,7 +9,8 @@
     "benchmark": "bun run src/evals/architectural-sim.ts",
     "benchmark:live": "bun run src/evals/live-harness.ts",
     "benchmark:human": "bun run src/evals/human-benchmark.ts",
-    "benchmark:standard": "bun run src/evals/standard-benchmarks.ts"
+    "benchmark:standard": "bun run src/evals/standard-benchmarks.ts",
+    "benchmark:full": "bun run src/evals/full-live-evaluation.ts"
   },
   "keywords": [
     "ai",
@@ -26,6 +27,7 @@
   "author": "Anthony Lee",
   "license": "MIT",
   "dependencies": {
+    "kuzu": "^0.11.3",
     "zod": "^3.23.0"
   },
   "devDependencies": {
@@ -33,5 +35,8 @@
     "typescript": "^5.6.0",
     "mem0ai": "^3.1.8",
     "@getzep/zep-cloud": "^2.0.2"
-  }
+  },
+  "trustedDependencies": [
+    "kuzu"
+  ]
 }
