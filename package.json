@@ -7,7 +7,8 @@
   "scripts": {
     "test": "bun test",
     "benchmark": "bun run src/evals/architectural-sim.ts",
-    "benchmark:live": "bun run src/evals/live-harness.ts"
+    "benchmark:live": "bun run src/evals/live-harness.ts",
+    "benchmark:human": "bun run src/evals/human-benchmark.ts"
   },
   "keywords": [
     "ai",

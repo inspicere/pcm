@@ -67,13 +67,21 @@ bun test
 bun run benchmark
 ```
 
-### 4. Run the Live Head-to-Head Harness (against real Mem0 and Zep SDKs)
+### 4. Run the Real Human Usage Benchmark (against real Obsidian Vault, Mem0, and Zep)
 ```bash
-# Optional: Set keys in .env to call real external services
-# OPENAI_API_KEY=sk-... (for Mem0 OSS)
+# Tests against a real Obsidian vault on disk across 4 complex human scenarios:
+# 1. Architectural migration (ULID vs UUIDv4)
+# 2. Multi-session bug synthesis (WebSockets on Railway)
+# 3. Multi-repo project disambiguation (Work API vs Mobile Cognito)
+# 4. Critical human security guardrails (Redacting tokens in logs)
+bun run benchmark:human
+```
+
+### 5. Run the Live Head-to-Head Harness (against real Mem0 and Zep Cloud SDKs)
+```bash
+# Set keys in .env to call real external services
 # MEM0_API_KEY=m0-...   (for Mem0 Cloud)
 # ZEP_API_KEY=z_...     (for Zep Cloud)
-
 bun run benchmark:live
 ```
 
