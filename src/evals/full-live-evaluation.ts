@@ -88,7 +88,7 @@ export async function runFullLiveEvaluation() {
 
   const mem0ApiKey = process.env.MEM0_API_KEY;
   const zepApiKey = process.env.ZEP_API_KEY;
-  const pythonExe = "C:\\Users\\anthonynlee\\Desktop\\dev\\mework\\dragonwriter\\backend\\venv\\Scripts\\python.exe";
+  const pythonExe = "C:\\Users\\anthonynlee\\AppData\\Local\\Programs\\Python\\Python311\\python.exe";
   const kuzuScript = resolve(process.cwd(), "src/evals/kuzu_rag.py");
 
   // 1. Seed Real Mem0 Cloud
@@ -173,6 +173,7 @@ export async function runFullLiveEvaluation() {
   const rrkClient = new MockRerankClient();
 
   const report: Record<string, { totalAcc: number; totalHelp: number; leaks: number; latencyMs: number; tokens: number }> = {
+    "Upgraded PCM (PCM + Kùzu)": { totalAcc: 0, totalHelp: 0, leaks: 0, latencyMs: 0, tokens: 0 },
     "PCM (Cognitive Mesh)": { totalAcc: 0, totalHelp: 0, leaks: 0, latencyMs: 0, tokens: 0 },
     "Traditional Graph RAG (Kùzu)": { totalAcc: 0, totalHelp: 0, leaks: 0, latencyMs: 0, tokens: 0 },
     "Obsidian Vault (Ripgrep)": { totalAcc: 0, totalHelp: 0, leaks: 0, latencyMs: 0, tokens: 0 },
@@ -183,7 +184,7 @@ export async function runFullLiveEvaluation() {
   for (const s of SCENARIOS) {
     console.log(`🧪 Running Scenario: [${s.name}]`);
 
-    // 1. PCM
+    // 1. PCM (Vanilla Cognitive Mesh)
     const pcmT0 = performance.now();
     const reranked = await rrkClient.rerank(s.prompt, pcmTexts);
     const rMap = new Map(reranked.map((r) => [r.index, r.relevanceScore]));
@@ -217,6 +218,47 @@ export async function runFullLiveEvaluation() {
     report["PCM (Cognitive Mesh)"].totalHelp += pcmMust ? 100 : 50;
     report["PCM (Cognitive Mesh)"].tokens += Math.round(pcmText.length / 4);
     report["PCM (Cognitive Mesh)"].latencyMs += pcmLatency;
+
+    // 1b. UPGRADED PCM (PCM + KÙZU GRAPH DAEMON)
+    const upT0 = performance.now();
+    let kuzuTripletsText = "";
+    try {
+      const kuzuRes = await fetch("http://127.0.0.1:8765/query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: s.prompt, project_scope: s.projectScope || "" }),
+        signal: AbortSignal.timeout(500),
+      });
+      if (kuzuRes.ok) {
+        const parsed = (await kuzuRes.json()) as any;
+        if (parsed.triplets && parsed.triplets.length > 0) {
+          kuzuTripletsText = parsed.triplets
+            .map((t: any) => `(${t.source}) -[:${t.predicate}]-> (${t.target})`)
+            .join("\n");
+        }
+      }
+    } catch {}
+
+    // Step B: Inject Graph Lineage into PAE Situational Context
+    const upgradedSituational = [
+      ...situational.slice(0, 3).map((m) => ({ memoryId: m.id, text: m.text })),
+      ...(kuzuTripletsText ? [{ memoryId: "kuzu-graph-lineage", text: `[GRAPH TOPOLOGY & LINEAGE]:\n${kuzuTripletsText}` }] : []),
+    ];
+
+    const upSlots = buildPAESlots({
+      userQuery: s.prompt,
+      askerItems: (pinnedCache.get("default-user") || []).map((p) => ({ memoryId: p.id, text: p.text, importance: "pinned", strength: 1.0 })),
+      situationalItems: upgradedSituational,
+    });
+    const upText = formatSlotsToMarkdown(upSlots);
+    const upLatency = performance.now() - upT0;
+    const upLower = upText.toLowerCase();
+    const upMust = s.targetCriteria.mustInclude.every((k) => upLower.includes(k.toLowerCase()));
+    const upBad = s.targetCriteria.mustNotInclude.some((k) => upLower.includes(k.toLowerCase()));
+    report["Upgraded PCM (PCM + Kùzu)"].totalAcc += (upMust && !upBad) ? 100 : upMust ? 75 : 30;
+    report["Upgraded PCM (PCM + Kùzu)"].totalHelp += upMust ? 100 : 50;
+    report["Upgraded PCM (PCM + Kùzu)"].tokens += Math.round(upText.length / 4);
+    report["Upgraded PCM (PCM + Kùzu)"].latencyMs += upLatency;
 
     // 2. Traditional Graph RAG (Kùzu)
     try {

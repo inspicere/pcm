@@ -391,7 +391,7 @@ export const LOCOMO_BENCHMARK_SCENARIOS: LoCoMoScenario[] = [
   },
 ];
 
-export function runLoCoMoSuite() {
+export async function runLoCoMoSuite() {
   console.log("\n=========================================================================================");
   console.log("            INDUSTRY-STANDARD BENCHMARK: LOCOMO (LONG-CONTEXT CONVERSATIONAL MEMORY)     ");
   console.log("=========================================================================================\n");
@@ -429,6 +429,7 @@ export function runLoCoMoSuite() {
     tokens: number;
     latencyMs: number;
   }> = {
+    "Upgraded PCM (PCM + Kùzu)": { totalAccuracy: 0, singleHop: 0, temporalUpdate: 0, multiHop: 0, pinnedInvariant: 0, tokens: 0, latencyMs: 0 },
     "PCM (Cognitive Mesh)": { totalAccuracy: 0, singleHop: 0, temporalUpdate: 0, multiHop: 0, pinnedInvariant: 0, tokens: 0, latencyMs: 0 },
     "Standard Semantic RAG": { totalAccuracy: 0, singleHop: 0, temporalUpdate: 0, multiHop: 0, pinnedInvariant: 0, tokens: 0, latencyMs: 0 },
     "Obsidian / Lexical Grep": { totalAccuracy: 0, singleHop: 0, temporalUpdate: 0, multiHop: 0, pinnedInvariant: 0, tokens: 0, latencyMs: 0 },
@@ -509,6 +510,51 @@ export function runLoCoMoSuite() {
     if (scenario.category === "temporal_state_update") scores["PCM (Cognitive Mesh)"].temporalUpdate += pcmAcc;
     if (scenario.category === "multi_hop_synthesis") scores["PCM (Cognitive Mesh)"].multiHop += pcmAcc;
     if (scenario.category === "pinned_invariant") scores["PCM (Cognitive Mesh)"].pinnedInvariant += pcmAcc;
+
+    // 1b. Upgraded PCM (PCM + Kùzu Native Graph Lineage)
+    const upStart = performance.now();
+    let kuzuTripletsText = "";
+    try {
+      const kuzuRes = await fetch("http://127.0.0.1:8765/query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: scenario.evaluationQuery, project_scope: "" }),
+        signal: AbortSignal.timeout(500),
+      });
+      if (kuzuRes.ok) {
+        const parsed = (await kuzuRes.json()) as any;
+        if (parsed.triplets && parsed.triplets.length > 0) {
+          kuzuTripletsText = parsed.triplets
+            .map((t: any) => `(${t.source}) -[:${t.predicate}]-> (${t.target})`)
+            .join("\n");
+        }
+      }
+    } catch {}
+
+    const upSituational = [
+      ...activated.slice(0, 3).map((m) => ({ memoryId: m.id, text: m.text })),
+      ...(kuzuTripletsText ? [{ memoryId: "kuzu-lineage", text: `[GRAPH TOPOLOGY & LINEAGE]:\n${kuzuTripletsText}` }] : []),
+    ];
+
+    const upSlots = buildPAESlots({
+      userQuery: scenario.evaluationQuery,
+      askerItems: pinned.map((p) => ({ memoryId: p.id, text: p.text, importance: "pinned", strength: 1.0 })),
+      situationalItems: upSituational,
+    });
+    const upText = formatSlotsToMarkdown(upSlots);
+    const upLatency = performance.now() - upStart;
+    const upLower = upText.toLowerCase();
+    const upMust = scenario.targetCriteria.mustInclude.every((k) => upLower.includes(k.toLowerCase()));
+    const upBad = scenario.targetCriteria.mustNotInclude.some((k) => upLower.includes(k.toLowerCase()));
+    const upScore = (upMust && !upBad) ? 100 : upMust ? 75 : 30;
+
+    scores["Upgraded PCM (PCM + Kùzu)"]!.totalAccuracy += upScore;
+    if (scenario.category === "single_hop") scores["Upgraded PCM (PCM + Kùzu)"]!.singleHop += upScore;
+    if (scenario.category === "temporal_state_update") scores["Upgraded PCM (PCM + Kùzu)"]!.temporalUpdate += upScore;
+    if (scenario.category === "multi_hop_synthesis") scores["Upgraded PCM (PCM + Kùzu)"]!.multiHop += upScore;
+    if (scenario.category === "pinned_invariant") scores["Upgraded PCM (PCM + Kùzu)"]!.pinnedInvariant += upScore;
+    scores["Upgraded PCM (PCM + Kùzu)"]!.tokens += Math.round(upText.length / 4);
+    scores["Upgraded PCM (PCM + Kùzu)"]!.latencyMs += upLatency;
 
     // 2. Standard Semantic RAG (Vector-Only)
     const ragStart = performance.now();
@@ -614,7 +660,7 @@ export async function runStandardIndustryBenchmarks() {
   ]);
 
   // 2. Run LoCoMo
-  const locomoScores = runLoCoMoSuite();
+  const locomoScores = await runLoCoMoSuite();
   const numScenarios = LOCOMO_BENCHMARK_SCENARIOS.length;
 
   console.log("=========================================================================================");

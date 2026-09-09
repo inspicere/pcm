@@ -4,3 +4,8 @@ dist/
 .env.local
 *.log
 .DS_Store
+__pycache__/
+*.pyc
+data/
+src/evals/data/
+src/graph/data/
