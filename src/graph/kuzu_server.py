@@ -60,6 +60,32 @@ class KuzuHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(response)))
             self.end_headers()
             self.wfile.write(response)
+        elif self.path.startswith("/upsert"):
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length)
+            payload = json.loads(body) if body else {}
+
+            triplets = payload.get("triplets", [])
+            inserted = 0
+            for t in triplets:
+                engine.upsert_triplet(
+                    source=t.get("source", ""),
+                    predicate=t.get("predicate", ""),
+                    target=t.get("target", ""),
+                    source_type=t.get("source_type", "Entity"),
+                    target_type=t.get("target_type", "Entity"),
+                    confidence=float(t.get("confidence", 1.0)),
+                    memory_id=t.get("memory_id", ""),
+                    project=t.get("project", "")
+                )
+                inserted += 1
+
+            response = json.dumps({"ok": True, "inserted": inserted}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(response)))
+            self.end_headers()
+            self.wfile.write(response)
         else:
             self.send_response(404)
             self.end_headers()

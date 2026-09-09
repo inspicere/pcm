@@ -56,6 +56,12 @@ export class MockRerankClient {
       websocket: ["ws", "socket", "dropouts", "drop", "dropping", "disconnect"],
       connections: ["connection", "keepalive", "ping", "pong", "interval"],
       railway: ["deployment", "private", "networking", "incident", "ipv6", "loopback"],
+      workout: ["running", "marathon", "swimming", "fitness", "exercise", "routine", "pool", "outdoor"],
+      eat: ["food", "allergy", "allergic", "shellfish", "clams", "oysters", "dinner", "lunch", "restaurant", "bar", "clam", "oyster"],
+      dinner: ["food", "thai", "curry", "poisoning", "takeout", "restaurant", "starving"],
+      spouse: ["alex", "architect", "wedding", "anniversary", "married", "date", "living"],
+      bio: ["founder", "cto", "cogmesh", "fintech", "manager", "career", "keynote", "speaker", "introduction"],
+      health: ["medical", "dental", "eye", "exam", "appointment", "wellness", "summary"],
     };
 
     for (const t of rawTokens) {

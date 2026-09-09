@@ -9,3 +9,5 @@ __pycache__/
 data/
 src/evals/data/
 src/graph/data/
+vault_*/
+
