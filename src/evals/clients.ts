@@ -42,7 +42,21 @@ export class MockRerankClient {
   readonly model = "mock-rerank-v1";
 
   async rerank(query: string, documents: string[], topN?: number): Promise<RerankResult[]> {
-    const rawTokens = query.toLowerCase().split(/\W+/).filter(Boolean);
+    const STOP_WORDS = new Set([
+      "i", "me", "my", "myself", "we", "our", "ours", "ourselves", "you", "your", "yours",
+      "he", "him", "his", "himself", "she", "her", "hers", "herself", "it", "its", "itself",
+      "they", "them", "their", "theirs", "themselves", "what", "which", "who", "whom", "this",
+      "that", "these", "those", "am", "is", "are", "was", "were", "be", "been", "being",
+      "have", "has", "had", "having", "do", "does", "did", "doing", "a", "an", "the", "and",
+      "but", "if", "or", "because", "as", "until", "while", "of", "at", "by", "for", "with",
+      "about", "against", "between", "into", "through", "during", "before", "after", "above",
+      "below", "to", "from", "up", "down", "in", "out", "on", "off", "over", "under", "again",
+      "further", "then", "once", "here", "there", "when", "where", "why", "how", "all", "any",
+      "both", "each", "few", "more", "most", "other", "some", "such", "no", "nor", "not",
+      "only", "own", "same", "so", "than", "too", "very", "can", "will", "just", "don", "should", "now",
+    ]);
+
+    const rawTokens = query.toLowerCase().split(/\W+/).filter((w) => w.length > 1 && !STOP_WORDS.has(w));
     const queryTokens = new Set<string>();
 
     const SYNONYM_MAP: Record<string, string[]> = {
@@ -62,6 +76,8 @@ export class MockRerankClient {
       spouse: ["alex", "architect", "wedding", "anniversary", "married", "date", "living"],
       bio: ["founder", "cto", "cogmesh", "fintech", "manager", "career", "keynote", "speaker", "introduction"],
       health: ["medical", "dental", "eye", "exam", "appointment", "wellness", "summary"],
+      medical: ["health", "dental", "eye", "optometrist", "vision", "exam", "wellness", "doctor"],
+      trainer: ["health", "medical", "fitness", "exercise"],
     };
 
     for (const t of rawTokens) {
@@ -73,7 +89,7 @@ export class MockRerankClient {
     }
 
     const scored = documents.map((doc, index) => {
-      const docTokens = doc.toLowerCase().split(/\W+/).filter(Boolean);
+      const docTokens = doc.toLowerCase().split(/\W+/).filter((w) => w.length > 1 && !STOP_WORDS.has(w));
       let matches = 0;
       for (const t of docTokens) {
         if (queryTokens.has(t)) matches++;

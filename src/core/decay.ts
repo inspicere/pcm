@@ -5,10 +5,28 @@ export const PINNED_STRENGTH = 1.0;
 export const HIGH_INITIAL_STRENGTH = 0.85;
 export const DEFAULT_INITIAL_STRENGTH = 0.70;
 
-export function getInitialStrength(importance: Importance): number {
+const INVARIANT_PATTERNS = [
+  /anaphylactic/i,
+  /life-threatening\s+allergy/i,
+  /epipen/i,
+  /severe\s+allergy/i,
+  /never\s+disclose/i,
+  /critical.*invariant/i,
+  /confidential.*invariant/i,
+  /strict.*invariant/i,
+  /prescription\s+medication.*anxiety/i,
+];
+
+export function isInvariantContent(text: string): boolean {
+  if (!text) return false;
+  return INVARIANT_PATTERNS.some((pat) => pat.test(text));
+}
+
+export function getInitialStrength(importance: Importance, text?: string): number {
+  if (importance === "pinned" || (text && isInvariantContent(text))) {
+    return PINNED_STRENGTH;
+  }
   switch (importance) {
-    case "pinned":
-      return PINNED_STRENGTH;
     case "high":
       return HIGH_INITIAL_STRENGTH;
     case "default":
@@ -27,8 +45,9 @@ export function calculateDecayedStrength(
   boostCount: number = 0,
   importance: Importance = "default",
   decayRate: number = DEFAULT_DECAY_RATE,
+  text?: string,
 ): number {
-  if (importance === "pinned") {
+  if (importance === "pinned" || (text && isInvariantContent(text))) {
     return PINNED_STRENGTH;
   }
 

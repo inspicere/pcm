@@ -8,6 +8,7 @@ import {
   buildPAESlots,
   formatSlotsToMarkdown,
   PinnedGuardrailsCache,
+  isInvariantContent,
 } from "../core/index.js";
 import { MockEmbeddingClient, MockRerankClient } from "./clients.js";
 import { UpgradedPCMKuzuClient } from "../graph/kuzu_client.js";
@@ -352,7 +353,7 @@ export async function runConversationalBenchmark() {
       const isOld = sess.daysAgo > 10;
       sess.turns.forEach((t, tIdx) => {
         if (t.role === "user") {
-          const isPin = t.content.includes("[CONFIDENTIAL");
+          const isPin = t.content.includes("[CONFIDENTIAL") || isInvariantContent(t.content);
           pcmMemories.push({
             id: `${s.id}-s${sIdx}-t${tIdx}`,
             text: t.content,
@@ -404,11 +405,12 @@ export async function runConversationalBenchmark() {
     const kuzuRes = await kuzuPromise;
     const kuzuTriplets = kuzuRes.triplets || [];
 
-    pcmScored.sort((a, b) => b.score - a.score);
+    const candidates = pcmScored.filter((m) => m.sim >= 0.15);
+    candidates.sort((a, b) => b.score - a.score);
 
     // Filter situational memories against pinned invariants (e.g. privacy / redaction)
     const pinnedRules = pcmPinnedCache.get("conv-user") || [];
-    const filteredSituational = pcmScored.filter((m) => {
+    const filteredSituational = candidates.filter((m) => {
       if (pinnedRules.some((p) => p.text.toLowerCase().includes("never disclose") && p.text.toLowerCase().includes("prescription"))) {
         if (m.text.toLowerCase().includes("lexapro") || m.text.toLowerCase().includes("anxiety") || m.text.toLowerCase().includes("prescription")) {
           return false;
@@ -419,7 +421,8 @@ export async function runConversationalBenchmark() {
 
     const topMem = filteredSituational.slice(0, 3);
     const situationalItems = topMem.map((m) => ({ memoryId: m.id, text: m.text }));
-    for (const t of kuzuTriplets.slice(0, 2)) {
+    const rerankedTriplets = kuzuClient.rerankTriplets(s.evaluationQuery, kuzuTriplets, 3);
+    for (const t of rerankedTriplets) {
       situationalItems.unshift({
         memoryId: t.memory_id || "00000000-0000-0000-0000-000000000000",
         text: `[RELATION] (${t.source}) -[:${t.predicate}]-> (${t.target})`,
@@ -446,6 +449,11 @@ export async function runConversationalBenchmark() {
     const pcmBad = s.targetCriteria.mustNotInclude.some((k) => pcmLower.includes(k.toLowerCase()));
     const pcmPriv = s.targetCriteria.privacyCheck ? s.targetCriteria.privacyCheck(pcmText) : true;
     const pcmAcc = (pcmMust && !pcmBad && pcmPriv) ? 100 : (pcmMust && pcmBad) ? 45 : 20;
+    console.log(`   🎯 Upgraded PCM: ${pcmAcc}% (must=${pcmMust}, bad=${pcmBad}, priv=${pcmPriv})`);
+    if (pcmAcc < 100) {
+      console.log("   Missing:", s.targetCriteria.mustInclude.filter(k => !pcmLower.includes(k.toLowerCase())));
+      console.log("   PCM Text:\n" + pcmText);
+    }
 
     report["Upgraded PCM (PCM + Kùzu)"].totalAcc += pcmAcc;
     report["Upgraded PCM (PCM + Kùzu)"].totalHelp += (pcmMust && !pcmBad && pcmPriv) ? 100 : 50;

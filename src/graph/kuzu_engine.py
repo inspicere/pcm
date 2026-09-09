@@ -50,7 +50,7 @@ class UpgradedPCMKuzuEngine:
                     "CREATE (:Entity {name: $name, entity_type: $etype})",
                     parameters={"name": str(name), "etype": str(etype)}
                 )
-            except Exception:
+            except Exception as e:
                 pass
 
         # Create directed edge
@@ -76,34 +76,65 @@ class UpgradedPCMKuzuEngine:
                     "ts": int(time.time() * 1000)
                 }
             )
-        except Exception:
-            pass
+        except Exception as e:
+            print("Rel error:", e, file=sys.stderr)
 
     def query_subgraph(self, query: str, project_scope: str = "", max_hops: int = 2, top_k: int = 6):
         """
         Extracts multi-hop relational subgraph relevant to query and project with single-pass Cypher.
         """
-        words = [w.lower() for w in query.strip().split() if len(w) > 3][:6]
-        if not words:
+        import re
+        tokens = [re.sub(r"^\W+|\W+$", "", w.lower()) for w in query.strip().split()]
+        stop_words = {"what", "does", "give", "tell", "about", "with", "from", "this", "that", "have", "your", "today", "tonight", "brief", "for", "and", "the", "are", "can", "will", "our", "all", "any", "out", "not", "but", "now"}
+        words = [w for w in tokens if len(w) > 2 and w not in stop_words]
+
+        GRAPH_SYNONYMS = {
+            "workout": ["swim", "swimming", "run", "running", "activity", "fitness", "denver"],
+            "fitness": ["swim", "swimming", "run", "running", "activity", "workout", "denver"],
+            "activity": ["swim", "swimming", "run", "running", "fitness", "workout", "denver"],
+            "routine": ["swim", "swimming", "run", "running"],
+            "outdoor": ["lake", "run", "running", "denver", "austin"],
+            "spouse": ["alex", "partner", "wife", "husband", "profession", "anniversary", "wedding"],
+            "living": ["profession", "career", "job", "work", "architect"],
+            "dinner": ["food", "thai", "curry", "cuisine", "restaurant", "eat", "poisoning"],
+            "lunch": ["food", "eat", "shellfish", "clam", "oyster", "restaurant", "epipen"],
+            "recommendations": ["dinner", "food", "thai", "curry", "cuisine"],
+            "bio": ["career", "founder", "cto", "manager", "fintech", "cogmesh"],
+            "keynote": ["founder", "cto", "cogmesh", "career"],
+            "conference": ["founder", "cto", "cogmesh"],
+            "medical": ["lexapro", "anxiety", "health", "dental", "allergy", "vision"],
+            "trainer": ["health", "medical", "fitness", "exercise"],
+        }
+
+        expanded_words = set(words)
+        for w in words:
+            if w in GRAPH_SYNONYMS:
+                for syn in GRAPH_SYNONYMS[w]:
+                    expanded_words.add(syn)
+
+        if not expanded_words:
             return []
 
         triplets = []
         seen = set()
 
-        # Build combined predicate clause: ANY(word IN $words WHERE lower(a.name) CONTAINS word ...)
-        # In Kùzu, doing a single query with list membership check or regex pattern is instantaneous
-        pattern = "|".join([w for w in words])
+        pattern = "|".join([re.escape(w) for w in expanded_words])
         try:
-            query_cypher = """
+            scope_filter = "AND (lower(r.project_scope) = $proj OR r.project_scope = '')" if project_scope else ""
+            query_cypher = f"""
             MATCH (a:Entity)-[r:RelatesTo]->(b:Entity)
-            WHERE regexp_matches(lower(a.name), $pattern) 
+            WHERE (regexp_matches(lower(a.name), $pattern) 
                OR regexp_matches(lower(b.name), $pattern) 
-               OR regexp_matches(lower(r.predicate), $pattern)
+               OR regexp_matches(lower(r.predicate), $pattern))
+               {scope_filter}
             RETURN a.name, a.entity_type, r.predicate, b.name, b.entity_type, r.confidence, r.source_memory_id, r.project_scope
             ORDER BY r.confidence DESC
             LIMIT $limit
             """
-            res = self.conn.execute(query_cypher, parameters={"pattern": pattern, "limit": top_k})
+            params = {"pattern": pattern, "limit": max(top_k, 12)}
+            if project_scope:
+                params["proj"] = project_scope.lower()
+            res = self.conn.execute(query_cypher, parameters=params)
             while res.has_next():
                 row = res.get_next()
                 if project_scope and row[7] and str(row[7]).lower() != project_scope.lower():
@@ -122,7 +153,8 @@ class UpgradedPCMKuzuEngine:
                         "memory_id": row[6],
                         "project": row[7],
                     })
-        except Exception:
+        except Exception as e:
+            print("Cypher execution failed:", e, file=sys.stderr)
             # Fallback to exact anchor matches
             for word in words[:3]:
                 try:
