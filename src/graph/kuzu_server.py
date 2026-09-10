@@ -51,6 +51,20 @@ class KuzuHandler(BaseHTTPRequestHandler):
                 ("client-mobile", "AUTHENTICATES_VIA", "AWS Cognito User Pools OAuth2 JWT", "Service", "Platform", 1.0, "client-mobile-auth", "client-mobile"),
                 ("Security Policy", "FORBIDS_RAW_LOGGING_OF", "Auth tokens and secrets", "Policy", "Security", 1.0, "pref-security", ""),
                 ("Auth Debugging", "REQUIRES_REDACTION", "Mask tokens to first 4 characters with slice", "Policy", "Rule", 1.0, "pref-security", ""),
+                # Conversational Triplet Seeds
+                ("Jordan", "ALLERGIC_TO", "Shellfish and oysters", "Person", "Medical", 1.0, "jordan-allergy", ""),
+                ("Jordan", "CARRIES", "EpiPen everywhere", "Person", "Medical", 1.0, "jordan-allergy", ""),
+                ("Jordan", "RESIDENCE_ACTIVE", "Denver Colorado", "Person", "Location", 1.0, "jordan-denver", ""),
+                ("Jordan", "EXERCISE_ACTIVE", "Swimming at indoor pool", "Person", "Activity", 1.0, "jordan-denver", ""),
+                ("Denver Residence", "SUPERSEDES", "Austin Residence", "State", "State", 1.0, "jordan-denver", ""),
+                ("Swimming Exercise", "SUPERSEDES", "Marathon Running", "State", "State", 1.0, "jordan-denver", ""),
+                ("Alex", "PROFESSION", "Commercial Architect", "Person", "Career", 1.0, "alex-architect", ""),
+                ("Jordan and Alex", "MARRIAGE_ANNIVERSARY", "September 18 10-year", "Event", "Date", 1.0, "jordan-anniv", ""),
+                ("Jordan", "FOOD_RESTRICTION", "Violent food poisoning from Thai green curry", "Person", "Health", 1.0, "jordan-thai", ""),
+                ("Thai Cuisine", "FORBIDDEN_DUE_TO", "Severe food poisoning", "Food", "Reason", 1.0, "jordan-thai", ""),
+                ("Jordan Career", "ACTIVE_ROLE", "Founder and CTO of CogMesh AI", "Career", "Company", 1.0, "jordan-cogmesh", ""),
+                ("CogMesh AI", "SUPERSEDES", "FinTech Corp VP Engineering", "State", "State", 1.0, "jordan-cogmesh", ""),
+                ("Jordan Health", "CONFIDENTIAL_INVARIANT", "Prescribed Lexapro strictly never disclose", "Medical", "Privacy", 1.0, "jordan-privacy", ""),
             ]
             for src, pred, tgt, stype, ttype, conf, mid, proj in seed_data:
                 engine.upsert_triplet(src, pred, tgt, stype, ttype, conf, mid, proj)

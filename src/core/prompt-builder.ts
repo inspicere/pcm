@@ -64,6 +64,15 @@ export function resolveSupersededContext(situationalItems: SituationalContextIte
       continue;
     }
 
+    const confMatch = item.text.match(/\[(?:GRAPH )?RELATION\]\s*\((.+?)\)\s*-\[?:?CONFIDENTIAL_INVARIANT[^\]]*\]?->\s*\((.+?)\)$/i);
+    if (confMatch) {
+      filtered.push({
+        ...item,
+        text: `[PROTECTED CONFIDENTIAL INVARIANT] Sensitive psychiatric/medical information strictly redacted`,
+      });
+      continue;
+    }
+
     // Keep other relation triplets and active resolution tags
     if (item.text.startsWith("[") && (item.text.includes("RELATION") || item.text.includes("RESOLUTION") || item.text.includes("ACTIVE") || item.text.includes("RESTRICTION"))) {
       filtered.push(item);
