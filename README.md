@@ -1,4 +1,4 @@
-﻿# Peripheral Cognitive Mesh (PCM)
+# Peripheral Cognitive Mesh (PCM)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen.svg)]()
@@ -22,7 +22,7 @@ Evaluated across six zero-mock benchmarking paradigms against **Mem0 Cloud** (`m
 | **Multi-Session Conversational Benchmark** | **100.0%** | 93.3% | 53.3% | 20.0% | 20.0% | 40.0% |
 | **Human Architectural Scenario Suite** | **93.8%** | 92.5% | 36.3% | 20.0% | 20.0% | 30.0% |
 | **LoCoMo Conversational Benchmark** | **87.5%** | 85.0% | 55.0% | 15.0% | 15.0% | 57.5% |
-| **Needle In A Haystack (250 items)** | **100.0%** | **100.0%** | 20.0% | N/A | N/A | 100.0% |
+| **Needle In A Haystack (250 items)** | **100.0%** | **100.0%** | 20.0% | **100.0%*** | **100.0%*** | 100.0% |
 | **Write Ingestion Latency (p50)** | **< 3ms** | **2.4ms** | File I/O | 1,788.3ms | 667.7ms | 20ms |
 | **Recall Query Latency (p50)** | **14.8ms** | **2.2ms** | 1.1ms | 372.3ms | 210.1ms | 35ms |
 | **Privacy & Security Invariant Leaks** | **✅ 0 Leaks** | **✅ 0 Leaks** | ⚠️ Leaks | ⚠️ Leaks | ⚠️ Leaks | ⚠️ Leaks |

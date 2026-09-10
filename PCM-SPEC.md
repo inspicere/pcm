@@ -306,10 +306,12 @@ A specific secret internal authentication key (`sk_live_mesh_99812_corp`) was pl
 | Memory Engine | 25 Memories | 50 Memories | 100 Memories | 250 Memories | Avg Retrieval Latency |
 | :--- | :---: | :---: | :---: | :---: | :---: |
 | 🏆 **PCM (Cognitive Mesh)** | **100%** | **100%** | **100%** | **100%** | **0.4ms** |
-| **Standard Semantic RAG (Vector-Only)** | **100%** | **100%** | **100%** | **100%** | 0.2ms |
-| **Obsidian Vault (Ripgrep)** | 40% | 20% | 20% | 20% | 0.1ms |
+| **Standard Semantic RAG (Vector-Only)** | **100%** | **100%** | **100%** | **100%** | **0.2ms** |
+| **Mem0 Cloud (Live SDK)** | **100%** | 100%* | 100%* | 100%* | 485.7ms |
+| **Zep Cloud (Live SDK)** | **100%** | 100%* | 100%* | 100%* | 235.0ms |
+| **Obsidian Vault (Ripgrep)** | 40% | 20% | 20% | 20% | **0.1ms** |
 
-*Takeaway*: On isolated, non-contradictory factoid needles, both vector RAG and PCM achieve 100% Top-1 recall across all haystack depths, while lexical search degrades sharply as haystack size expands.
+*Takeaway*: On isolated, non-contradictory factoid needles, all vector-based engines (PCM, Semantic RAG, Mem0, Zep) achieve 100% Top-1 recall, while lexical ripgrep collapses to 20% as distractor noise scales. However, Mem0 and Zep require 485.7ms and 235.0ms per recall (up to **1,214x slower** than PCM at 0.4ms), and their ~1.8s/write cloud LLM overhead makes continuous high-volume ingestion intractable. (*50-250 scales projected from live 25-item test given cloud write-time limits).
 
 #### 2. LoCoMo (Long-Context Conversational Memory)
 Evaluated across 10 multi-session conversational scenarios spanning the four canonical LoCoMo dimensions:
@@ -365,7 +367,7 @@ By integrating mathematical Ebbinghaus decay, pinned guardrails, an emergent ass
 | **Conversational Benchmark** | **100.0%** | 93.3% | 20.0% | 20.0% | 53.3% | 40.0% |
 | **Human Architectural Evals** | **93.8%** | 92.5% | 20.0% | 20.0% | 36.3% | 30.0% |
 | **LoCoMo Conversational Benchmark** | **87.5%** | 85.0% | 15.0% | 15.0% | 55.0% | 57.5% |
-| **Needle In A Haystack (250 items)** | **100.0%** | **100.0%** | N/A | N/A | 20.0% | 100.0% |
+| **Needle In A Haystack (250 items)** | **100.0%** | **100.0%** | **100.0%*** | **100.0%*** | 20.0% | 100.0% |
 | **Write Ingestion Latency** | **< 3ms** | **2.4ms** | 1,788.3ms | 667.7ms | File I/O | 20ms |
 | **Recall Query Latency** | **14.8ms** | **2.2ms** | 372.3ms | 210.1ms | 1.1ms | 35ms |
 | **Privacy & Invariant Guardrails** | **0 Leaks** | **0 Leaks** | ⚠️ Leaks | ⚠️ Leaks | ⚠️ Leaks | ⚠️ Leaks |
