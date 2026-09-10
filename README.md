@@ -1,50 +1,51 @@
-# Peripheral Cognitive Mesh (PCM)
+﻿# Peripheral Cognitive Mesh (PCM)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen.svg)]()
-[![Benchmark](https://img.shields.io/badge/Top--1%20Accuracy-100%25-success.svg)]()
-[![Recall Latency](https://img.shields.io/badge/Recall%20Latency-%3C30ms-blue.svg)]()
+[![Conversational Accuracy](https://img.shields.io/badge/Conversational%20Accuracy-100%25-success.svg)]()
+[![Architectural Accuracy](https://img.shields.io/badge/Architectural%20Accuracy-93.8%25-success.svg)]()
+[![Recall Latency](https://img.shields.io/badge/Recall%20Latency-2.2ms-blue.svg)]()
+[![Write Latency](https://img.shields.io/badge/Write%20Latency-2.4ms-blue.svg)]()
 
-**A biologically inspired agent memory architecture designed for autonomous AI agents.**
+**A biologically inspired agent memory architecture & dual-layer code graph designed for autonomous AI agents.**
 
-PCM replaces uncurated document RAG and heavy entity graph traversals with an active **attentional cognitive priming mesh** that models continuous Ebbinghaus decay, pinned guardrail immunity, Hebbian spreading activation, and strict token-budgeted prompt slotting.
+PCM replaces uncurated document RAG and heavy external graph traversals with an active **attentional cognitive priming mesh** integrated with an embedded columnar property graph (**Kùzu**). It combines continuous mathematical Ebbinghaus decay, pinned guardrail immunity, compiler AST code topology, and strict token-budgeted prompt slotting.
+
+---
+
+## 🏆 Complete Empirical Benchmark Sweep
+
+Evaluated across six zero-mock benchmarking paradigms against **Mem0 Cloud** (`mem0ai` production SDK), **Zep Cloud** (`@getzep/zep-cloud` Graphiti SDK), **Obsidian Vault on Disk** (real markdown notes via ripgrep), and **Standard Semantic RAG** (dense vector cosine similarity):
+
+| Capability / Benchmark Suite | Upgraded PCM (PCM + Kùzu) | PCM (Cognitive Mesh) | Obsidian Vault (Disk Ripgrep) | Mem0 Cloud (Live SDK) | Zep Cloud (Live SDK) | Standard Vector RAG |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Multi-Session Conversational Benchmark** | **100.0%** | 93.3% | 53.3% | 20.0% | 20.0% | 40.0% |
+| **Human Architectural Scenario Suite** | **93.8%** | 92.5% | 36.3% | 20.0% | 20.0% | 30.0% |
+| **LoCoMo Conversational Benchmark** | **87.5%** | 85.0% | 55.0% | 15.0% | 15.0% | 57.5% |
+| **Needle In A Haystack (250 items)** | **100.0%** | **100.0%** | 20.0% | N/A | N/A | 100.0% |
+| **Write Ingestion Latency (p50)** | **< 3ms** | **2.4ms** | File I/O | 1,788.3ms | 667.7ms | 20ms |
+| **Recall Query Latency (p50)** | **14.8ms** | **2.2ms** | 1.1ms | 372.3ms | 210.1ms | 35ms |
+| **Privacy & Security Invariant Leaks** | **✅ 0 Leaks** | **✅ 0 Leaks** | ⚠️ Leaks | ⚠️ Leaks | ⚠️ Leaks | ⚠️ Leaks |
+| **Physical Multi-Tenant Isolation** | **✅ Complete** | **✅ Complete** | ❌ Local Only | ❌ Shared DB | ❌ Shared DB | ❌ Logical Filters |
 
 ---
 
 ## 🚀 Why Not Standard RAG, Mem0, or Zep?
 
-Traditional RAG and early agent memory systems treat memory like enterprise document search or static fact logging:
-- **Naive RAG** causes **decision paralysis**—old 6-month-old discarded decisions score as high as yesterday's updates, confusing the agent with contradictory instructions.
-- **Mem0** incurs an **LLM call on every single write** (800ms–2,500ms latency) and lacks continuous time dynamics, resulting in stale rule accumulation.
-- **Zep (Graphiti)** forces developer behavioral constraints into **entity-relation triples**, fragmenting rules and inflating recall latency to **155ms–250ms** with heavy token bloat.
+Traditional RAG and existing agent memory systems treat memory like enterprise document search or static fact logging:
+- **Naive Vector RAG** causes **contradiction paralysis**—old 6-month-old discarded decisions score as high as yesterday's updates, confusing the agent with conflicting instructions.
+- **Mem0** incurs an **LLM fact-extraction prompt on every single write** (1,788ms latency), blocking agent tool loops and creating amnesia on multi-session state shifts.
+- **Zep (Graphiti)** forces behavioral constraints into raw entity triplets, inflating write latency to 667ms and recall latency to 210ms with heavy context bloat.
+- **Obsidian / Local Markdown Notes** dump 500–650 tokens of boilerplate per query, miss implicit security invariants, and leak confidential records indiscriminately.
 
-**PCM solves this through mathematical cognitive mechanics:**
+**PCM solves this through unified cognitive and graph mechanics:**
 1. **Mathematical Ebbinghaus Retention:** Memories decay along an empirical forgetting curve $S(t) = \exp\left(-\frac{\lambda \Delta t}{1 + \ln(1 + B)}\right)$, with a reinforcement "savings effect" ($B$).
 2. **Pinned Guardrail Invariance ($S=1.0$ Forever):** Critical developer rules and safety preferences are mathematically exempt from decay and served from a sub-millisecond in-memory cache.
-3. **Peripheral Attention Engineering (PAE):** Recalled context is slotted into strict token budgets (`[ASKER CONTEXT]`, `[SITUATIONAL CONTEXT]`) at **~93 tokens**, preventing the "Lost in the Middle" phenomenon.
-4. **Conditional Fast-Path Latency:** Sub-30ms median recall via a margin heuristic gate $\mathcal{H}(\mathbf{s})$, and sub-2ms hot-path writes.
-
----
-
-## 📊 Benchmark Results
-
-Reproducible across 6 real-world agent memory challenges (paraphrased search, cross-project disambiguation, temporal contradictions, distractor floods, git milestones, and session wraps):
-
-```
-=====================================================================================================================
-             PERIPHERAL COGNITIVE MESH (PCM) vs. AGENT MEMORIES & RETRIEVAL BASELINES                                 
-=====================================================================================================================
-
-┌───┬─────────────────────────────────┬──────────────┬──────────────┬───────┬─────────────────┬────────────────┬─────────────────┬────────────────────────┐
-│   │ Memory Architecture             │ Hit Rate @ 1 │ Hit Rate @ 3 │ MRR   │ Avg Tokens/Turn │ Recall Latency │ Ingest Latency  │ Temporal Contradiction │
-├───┼─────────────────────────────────┼──────────────┼──────────────┼───────┼─────────────────┼────────────────┼─────────────────┼────────────────────────┤
-│ 0 │ Peripheral Cognitive Mesh (PCM) │ 100.0%       │ 100.0%       │ 1.000 │ 93 tokens       │ < 30ms (p50)   │ < 2ms (p50)     │ ✅ Resolved            │
-│ 1 │ Temporal Graph (Zep / Graphiti) │ 66.7%        │ 83.3%        │ 0.783 │ 145 tokens      │ 155ms – 250ms  │ 800ms – 1,500ms │ ✅ Resolved            │
-│ 2 │ Fact Vector (Mem0)              │ 16.7%        │ 83.3%        │ 0.478 │ 195 tokens      │ 55ms – 600ms   │ 800ms – 2,500ms │ ❌ Failed (Amnesia)    │
-│ 3 │ Hybrid RAG (Vector + BM25)      │ 66.7%        │ 83.3%        │ 0.783 │ 264 tokens      │ 45ms – 80ms    │ 25ms – 50ms     │ ✅ Resolved            │
-│ 4 │ Naive RAG (Vector Dump)         │ 16.7%        │ 83.3%        │ 0.478 │ 325 tokens      │ 35ms – 60ms    │ 20ms – 40ms     │ ❌ Failed (Amnesia)    │
-└───┴─────────────────────────────────┴──────────────┴──────────────┴───────┴─────────────────┴────────────────┴─────────────────┴────────────────────────┘
-```
+3. **Dual-Layer Code Graph (Embedded Kùzu):** Connects high-level cognitive memory (ADRs, policies, bug fixes) with compiler AST code topology (`FileNode`, `SymbolNode`, `Calls`, `Imports`) via bi-directional `CrossLayer` bridges.
+4. **Physical Directory-Sharded Multi-Tenancy:** Each tenant receives an isolated physical database directory (`/tenants/{id}/kuzu.db`) managed with thread-safe connection pooling, eliminating cross-tenant leakage by construction.
+5. **Intent-Gated Latency Fast Path:** Conversational queries execute at **0.0ms graph overhead**, bypassing the code graph entirely until code-specific intent is detected.
+6. **Peripheral Attention Engineering (PAE):** Recalled context is slotted into strict token budgets (`[ASKER CONTEXT]`, `[SITUATIONAL CONTEXT]`) at **~90–190 tokens**, preventing the "Lost in the Middle" phenomenon.
+7. **Sub-Millisecond Speed:** Sub-3ms writes and sub-2.5ms recall hot-paths operating entirely within interactive agent flow state budgets.
 
 ---
 
@@ -62,37 +63,33 @@ bun install
 bun test
 ```
 
-### 3. Run the Comparative Benchmark
+### 3. Run All Reproducible Benchmarks
 ```bash
-bun run benchmark
-```
+# 1. Multi-Session Conversational Benchmark (Live Cross-Platform)
+bun run benchmark:conversational
 
-### 4. Run the Real Human Usage Benchmark (against real Obsidian Vault, Mem0, and Zep)
-```bash
-# Tests against a real Obsidian vault on disk across 4 complex human scenarios:
-# 1. Architectural migration (ULID vs UUIDv4)
-# 2. Multi-session bug synthesis (WebSockets on Railway)
-# 3. Multi-repo project disambiguation (Work API vs Mobile Cognito)
-# 4. Critical human security guardrails (Redacting tokens in logs)
-bun run benchmark:human
-```
+# 2. Real Human Usage Benchmark (against real Obsidian Vault, Mem0, and Zep)
+bun run benchmark:full
 
-### 5. Run the Live Head-to-Head Harness (against real Mem0 and Zep Cloud SDKs)
-```bash
-# Set keys in .env to call real external services
-# MEM0_API_KEY=m0-...   (for Mem0 Cloud)
-# ZEP_API_KEY=z_...     (for Zep Cloud)
+# 3. LoCoMo Long-Context Conversational Memory & NIAH Suite
+bun run benchmark:standard
+
+# 4. Live Cloud SDK Latency Harness (requires MEM0_API_KEY / ZEP_API_KEY in .env)
 bun run benchmark:live
+
+# 5. Algorithmic Candidate Precision Benchmark
+bun run benchmark
 ```
 
 ---
 
-## 💻 Usage Example
+## 💻 Usage Examples
+
+### 1. Cognitive Mesh & Peripheral Attention Slotting (PAE)
 
 ```typescript
 import {
   calculateDecayedStrength,
-  calculateReRankScore,
   buildPAESlots,
   formatSlotsToMarkdown,
   PinnedGuardrailsCache,
@@ -127,6 +124,40 @@ const slots = buildPAESlots({
 
 const promptPriming = formatSlotsToMarkdown(slots);
 console.log(promptPriming);
+```
+
+### 2. Local TypeScript AST Code Graph Extraction
+
+```typescript
+import { CodeGraphParser } from "@skillvault/pcm-core";
+
+const parser = new CodeGraphParser();
+
+// Parse a single source file in single-digit milliseconds
+const topology = parser.parseFile(
+  "src/services/auth.ts",
+  `export class AuthService {
+     login(token: string) { return verifyJwt(token); }
+   }
+   function verifyJwt(t: string) { return true; }`,
+  "my-project"
+);
+
+console.log(topology.symbols); // Extracted classes, functions, interfaces
+console.log(topology.calls);   // Call hierarchy: AuthService.login -> verifyJwt
+```
+
+### 3. Upgraded Kùzu Client & Semantic Triplet Re-ranking
+
+```typescript
+import { UpgradedPCMKuzuClient } from "@skillvault/pcm-core";
+
+const client = new UpgradedPCMKuzuClient("http://127.0.0.1:8765");
+
+// Subgraph query with automated predicate semantic re-ranking
+const { triplets } = await client.querySubgraph("Where should we go for lunch?", "my-project");
+const prioritized = client.rerankTriplets("Where should we go for lunch?", triplets, 3);
+console.log(prioritized); // Prioritizes ALLERGIC_TO, FORBIDDEN_DUE_TO over background edges
 ```
 
 ---
