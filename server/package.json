@@ -1,0 +1,24 @@
+{
+  "name": "pcm-server",
+  "version": "0.1.0",
+  "description": "MCP memory sidecar implementing PCM (Peripheral Cognitive Mesh) scoring: Ebbinghaus decay, pinned guardrails, PAE slotting. Phase 1 of the PCM memory migration.",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "backfill:pgvector": "bun run tools/backfill-pgvector.ts",
+    "re-embed": "bun run tools/re-embed.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "postgres": "^3.4.9",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "bun-types": "^1.2.0",
+    "typescript": "^5.6.0"
+  }
+}

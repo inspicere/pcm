@@ -1,0 +1,10 @@
+node_modules
+tests
+.git
+.gitignore
+*.md
+!README.md
+Dockerfile
+.dockerignore
+tsconfig.json
+pytest_cache
