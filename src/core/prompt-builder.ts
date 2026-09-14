@@ -24,89 +24,83 @@ export function buildPAESlots(params: BuildPAESlotsParams): PAESlots {
 }
 
 /**
- * Resolves active state and prunes superseded historical entities based on graph relations.
+ * A relation triplet supplied by a graph/memory backend, e.g.
+ * `[RELATION](Dana)-[SUPERSEDES]->(Dana, on-call for billing)`.
+ */
+const RELATION_TRIPLET_RE =
+  /\[(?:GRAPH )?RELATION\]\s*\((.+?)\)\s*-\[?:?([A-Z_]+)[^\]]*\]?->\s*\((.+?)\)$/i;
+
+/**
+ * An explicit per-item supersession declaration. An item whose text begins
+ * with `[SUPERSEDES: <memoryId>]` states that the situational item carrying
+ * that memoryId has been superseded by this item. The marker is machine
+ * metadata: it is stripped from the rendered text and the target is pruned.
+ */
+const SUPERSEDES_MARKER_RE = /^\[SUPERSEDES:\s*([^\]]+?)\s*\]\s*/;
+
+/**
+ * Resolves declared supersession/restriction signals in situational context.
+ *
+ * Only explicit signals are acted on — never free-text inference:
+ *
+ * - Relation triplets (`[RELATION](source)-[PREDICATE]->(target)`) are
+ *   formatted for presentation: SUPERSEDES/REPLACES render the source as the
+ *   active state, FORBIDDEN_DUE_TO as a restriction, CONFIDENTIAL_INVARIANT
+ *   as a withheld-details notice naming the target. An item whose text is an
+ *   exact (case-insensitive) match of a SUPERSEDES/REPLACES target is pruned.
+ * - `[SUPERSEDES: <memoryId>]` markers prune the targeted item by id; the
+ *   declaring item renders with the marker stripped.
+ *
+ * Everything else passes through verbatim. Partial mentions of a superseded
+ * entity are deliberately retained — false negatives are preferable to
+ * silently dropping content the caller never marked superseded.
  */
 export function resolveSupersededContext(situationalItems: SituationalContextItem[]): SituationalContextItem[] {
-  const supersededEntities = new Set<string>();
+  const supersededIds = new Set<string>();
+  const tripletTargets = new Set<string>();
 
   for (const item of situationalItems) {
-    const match = item.text.match(/\[(?:GRAPH )?RELATION\]\s*\((.+?)\)\s*-\[?:?(SUPERSEDES|REPLACES|FORBIDDEN_DUE_TO)[^\]]*\]?->\s*\((.+?)\)$/i);
-    if (match) {
-      const target = match[3]!.trim();
-      supersededEntities.add(target.toLowerCase());
-      for (const token of target.toLowerCase().split(/\W+/)) {
-        if (token.length > 3) supersededEntities.add(token);
-      }
+    const marker = item.text.match(SUPERSEDES_MARKER_RE);
+    if (marker) supersededIds.add(marker[1]!);
+    const triplet = item.text.match(RELATION_TRIPLET_RE);
+    if (triplet && /^(SUPERSEDES|REPLACES)$/i.test(triplet[2]!)) {
+      tripletTargets.add(triplet[3]!.trim().toLowerCase());
     }
   }
 
-  // Filter out older memories that only mention superseded entities and format active resolutions
-  const filtered: SituationalContextItem[] = [];
-
+  const resolved: SituationalContextItem[] = [];
   for (const item of situationalItems) {
-    // Check if this item is a transition relation (SUPERSEDES or REPLACES)
-    const relMatch = item.text.match(/\[(?:GRAPH )?RELATION\]\s*\((.+?)\)\s*-\[?:?(SUPERSEDES|REPLACES|FORBIDDEN_DUE_TO)[^\]]*\]?->\s*\((.+?)\)$/i);
-    if (relMatch) {
-      const source = relMatch[1]!.trim();
-      const rel = relMatch[2]!.toUpperCase();
-      if (rel === "SUPERSEDES" || rel === "REPLACES") {
-        filtered.push({
-          ...item,
-          text: `[ACTIVE STATE] ${source}`,
-        });
-      } else if (rel === "FORBIDDEN_DUE_TO") {
-        const target = relMatch[3]!.trim();
-        filtered.push({
-          ...item,
-          text: `[RESTRICTION] ${source} (FORBIDDEN DUE TO: ${target})`,
-        });
+    if (supersededIds.has(item.memoryId)) continue;
+
+    const marker = item.text.match(SUPERSEDES_MARKER_RE);
+    if (marker) {
+      resolved.push({ ...item, text: item.text.slice(marker[0].length) });
+      continue;
+    }
+
+    const triplet = item.text.match(RELATION_TRIPLET_RE);
+    if (triplet) {
+      const source = triplet[1]!.trim();
+      const predicate = triplet[2]!.toUpperCase();
+      const target = triplet[3]!.trim();
+      if (predicate === "SUPERSEDES" || predicate === "REPLACES") {
+        resolved.push({ ...item, text: `[ACTIVE STATE] ${source}` });
+      } else if (predicate === "FORBIDDEN_DUE_TO") {
+        resolved.push({ ...item, text: `[RESTRICTION] ${source} (FORBIDDEN DUE TO: ${target})` });
+      } else if (predicate === "CONFIDENTIAL_INVARIANT") {
+        resolved.push({ ...item, text: `[CONFIDENTIAL INVARIANT] (${target} — details withheld)` });
+      } else {
+        resolved.push(item);
       }
       continue;
     }
 
-    const confMatch = item.text.match(/\[(?:GRAPH )?RELATION\]\s*\((.+?)\)\s*-\[?:?CONFIDENTIAL_INVARIANT[^\]]*\]?->\s*\((.+?)\)$/i);
-    if (confMatch) {
-      filtered.push({
-        ...item,
-        text: `[PROTECTED CONFIDENTIAL INVARIANT] Sensitive psychiatric/medical information strictly redacted`,
-      });
-      continue;
-    }
+    if (tripletTargets.has(item.text.trim().toLowerCase())) continue;
 
-    // Keep other relation triplets and active resolution tags
-    if (item.text.startsWith("[") && (item.text.includes("RELATION") || item.text.includes("RESOLUTION") || item.text.includes("ACTIVE") || item.text.includes("RESTRICTION"))) {
-      filtered.push(item);
-      continue;
-    }
-
-    const lower = item.text.toLowerCase();
-    // If it's a pure obsolete memory (e.g. historical Austin or old running without Denver/swimming)
-    let isPureObsolete = false;
-    for (const sup of supersededEntities) {
-      if (lower.includes(sup)) {
-        // If it also doesn't contain transition words ("moved", "switched", "update", "supersedes", "new", "resigned")
-        if (!lower.includes("moved") && !lower.includes("switched") && !lower.includes("update") && !lower.includes("instead") && !lower.includes("resigned")) {
-          isPureObsolete = true;
-          break;
-        }
-      }
-    }
-
-    if (!isPureObsolete) {
-      // Clean transitional noise from update text if applicable
-      let cleanedText = item.text;
-      if (lower.includes("moved from austin to denver")) {
-        cleanedText = "Active Location & Activity Update: Resident in Denver, Colorado. Switched completely to low-impact swimming at an indoor pool.";
-      } else if (lower.includes("resigned from fintech corp")) {
-        cleanedText = "Active Career Role: Founder & CTO of CogMesh AI, building cognitive agent architectures for enterprise memory.";
-      } else if (lower.includes("violent food poisoning from green curry")) {
-        cleanedText = "Food Restriction: Severe violent food poisoning from Thai cuisine. Strictly never recommend Thai food or curry.";
-      }
-      filtered.push({ ...item, text: cleanedText });
-    }
+    resolved.push(item);
   }
 
-  return filtered;
+  return resolved;
 }
 
 export function formatSlotsToMarkdown(slots: PAESlots): string {
@@ -119,12 +113,11 @@ export function formatSlotsToMarkdown(slots: PAESlots): string {
     }
   }
 
-  const rawSituational = slots.situational_context ?? [];
-  const resolvedSituational = resolveSupersededContext(rawSituational);
+  const situational = resolveSupersededContext(slots.situational_context ?? []);
 
-  if (resolvedSituational.length > 0) {
+  if (situational.length > 0) {
     parts.push("### [SITUATIONAL CONTEXT: Recent Decisions & Context]");
-    for (const item of resolvedSituational) {
+    for (const item of situational) {
       parts.push(`- ${item.text}`);
     }
   }

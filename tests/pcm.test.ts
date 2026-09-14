@@ -8,6 +8,7 @@ import {
   shouldInvokeNeuralReranker,
   buildPAESlots,
   formatSlotsToMarkdown,
+  resolveSupersededContext,
 } from "../src/index.js";
 
 describe("PCM Standalone Engine Tests", () => {
@@ -98,5 +99,77 @@ describe("PCM Standalone Engine Tests", () => {
     expect(markdown).toContain("[ASKER CONTEXT: Pinned Rules & Preferences]");
     expect(markdown).toContain("[SITUATIONAL CONTEXT: Recent Decisions & Context]");
     expect(markdown.length).toBeLessThan(500); // well under 125 tokens
+  });
+
+  test("formatSlotsToMarkdown returns stored situational text verbatim", () => {
+    const storedText = "Team note: Dana resigned from fintech corp last quarter, so reassign the on-call rotation for the billing service.";
+    const slots = buildPAESlots({
+      userQuery: "Who is on call for billing?",
+      situationalItems: [
+        { memoryId: "c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a33", text: storedText },
+      ],
+    });
+
+    const markdown = formatSlotsToMarkdown(slots);
+    expect(markdown).toContain(storedText);
+    // markdown and structuredContent must agree — no silent rewriting between them
+    for (const item of slots.situational_context) {
+      expect(markdown).toContain(item.text);
+    }
+  });
+
+  test("resolveSupersededContext formats a SUPERSEDES triplet and prunes its exact target", () => {
+    const out = resolveSupersededContext([
+      { memoryId: "d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a44", text: "[RELATION](Dana)-[SUPERSEDES]->(Dana, on-call for billing)" },
+      { memoryId: "e0eebc99-9c0b-4ef8-bb6d-6bb9bd380a55", text: "Dana, on-call for billing" },
+      { memoryId: "f0eebc99-9c0b-4ef8-bb6d-6bb9bd380a66", text: "Unrelated memory about dnsmasq failover" },
+    ]);
+
+    expect(out.map((i) => i.text)).toEqual([
+      "[ACTIVE STATE] Dana",
+      "Unrelated memory about dnsmasq failover",
+    ]);
+  });
+
+  test("resolveSupersededContext keeps partial mentions when no exact target matches", () => {
+    const mentioning = "Billing rotation still references Dana's old schedule";
+    const out = resolveSupersededContext([
+      { memoryId: "d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a44", text: "[RELATION](Dana)-[SUPERSEDES]->(Dana, on-call for billing)" },
+      { memoryId: "e0eebc99-9c0b-4ef8-bb6d-6bb9bd380a55", text: mentioning },
+    ]);
+
+    // partial mention is retained, not silently dropped
+    expect(out.some((i) => i.text === mentioning)).toBe(true);
+  });
+
+  test("resolveSupersededContext honors [SUPERSEDES: memoryId] markers", () => {
+    const out = resolveSupersededContext([
+      { memoryId: "e0eebc99-9c0b-4ef8-bb6d-6bb9bd380a55", text: "[SUPERSEDES: d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a44] Dana owns on-call for billing as of this week" },
+      { memoryId: "d0eebc99-9c0b-4ef8-bb6d-6bb9bd380a44", text: "Dana owns on-call for billing" },
+    ]);
+
+    expect(out).toHaveLength(1);
+    expect(out[0]!.memoryId).toBe("e0eebc99-9c0b-4ef8-bb6d-6bb9bd380a55");
+    expect(out[0]!.text).toBe("Dana owns on-call for billing as of this week");
+  });
+
+  test("resolveSupersededContext formats FORBIDDEN_DUE_TO and CONFIDENTIAL_INVARIANT without inventing content", () => {
+    const out = resolveSupersededContext([
+      { memoryId: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11", text: "[RELATION](prod deploys)-[FORBIDDEN_DUE_TO]->(open change window)" },
+      { memoryId: "b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a22", text: "[RELATION](patient record)-[CONFIDENTIAL_INVARIANT]->(patient record)" },
+    ]);
+
+    expect(out[0]!.text).toBe("[RESTRICTION] prod deploys (FORBIDDEN DUE TO: open change window)");
+    // names the target, withholds details — must not fabricate specifics
+    expect(out[1]!.text).toBe("[CONFIDENTIAL INVARIANT] (patient record — details withheld)");
+    expect(out[1]!.text).not.toContain("psychiatric");
+  });
+
+  test("resolveSupersededContext passes unknown relation predicates through unchanged", () => {
+    const triplet = "[RELATION](api)-[CALLS]->(database)";
+    const out = resolveSupersededContext([
+      { memoryId: "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11", text: triplet },
+    ]);
+    expect(out[0]!.text).toBe(triplet);
   });
 });
