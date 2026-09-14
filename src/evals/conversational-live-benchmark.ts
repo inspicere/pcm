@@ -9,9 +9,9 @@ import {
   formatSlotsToMarkdown,
   PinnedGuardrailsCache,
   isInvariantContent,
-} from "../core/index.js";
-import { MockEmbeddingClient, MockRerankClient } from "./clients.js";
-import { UpgradedPCMKuzuClient } from "../graph/kuzu_client.js";
+} from "../core/index.ts";
+import { MockEmbeddingClient, MockRerankClient } from "./clients.ts";
+import { UpgradedPCMKuzuClient } from "../graph/kuzu_client.ts";
 
 // Load environment variables from .env
 function loadEnv() {

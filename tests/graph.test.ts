@@ -1,6 +1,6 @@
 ﻿import { describe, it, expect } from "bun:test";
-import { CodeGraphParser } from "../src/graph/code-graph-parser.js";
-import { UpgradedPCMKuzuClient } from "../src/graph/kuzu_client.js";
+import { CodeGraphParser } from "../src/graph/code-graph-parser.ts";
+import { UpgradedPCMKuzuClient } from "../src/graph/kuzu_client.ts";
 
 describe("CodeGraphParser AST Extraction", () => {
   const parser = new CodeGraphParser();

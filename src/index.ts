@@ -1,4 +1,4 @@
-export * from "./schema/index.js";
-export * from "./core/index.js";
-export * from "./graph/index.js";
+export * from "./schema/index.ts";
+export * from "./core/index.ts";
+export * from "./graph/index.ts";
 

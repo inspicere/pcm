@@ -1,2 +1,2 @@
-﻿export * from "./kuzu_client.js";
-export * from "./code-graph-parser.js";
+﻿export * from "./kuzu_client.ts";
+export * from "./code-graph-parser.ts";

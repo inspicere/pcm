@@ -8,7 +8,7 @@ import {
   shouldInvokeNeuralReranker,
   buildPAESlots,
   formatSlotsToMarkdown,
-} from "../src/index.js";
+} from "../src/index.ts";
 
 describe("PCM Standalone Engine Tests", () => {
   test("Pinned memories never decay over time", () => {

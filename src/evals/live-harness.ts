@@ -1,12 +1,12 @@
-import { GOLDEN_EVAL_DATASET } from "./dataset.js";
+import { GOLDEN_EVAL_DATASET } from "./dataset.ts";
 import {
   getInitialStrength,
   calculateDecayedStrength,
   calculateReRankScore,
   buildPAESlots,
   formatSlotsToMarkdown,
-} from "../core/index.js";
-import { MockEmbeddingClient, MockRerankClient } from "./clients.js";
+} from "../core/index.ts";
+import { MockEmbeddingClient, MockRerankClient } from "./clients.ts";
 
 interface LiveTestResult {
   engine: string;

@@ -264,7 +264,7 @@ export class CodeGraphParser {
           scan(fullPath);
         } else if (entry.isFile()) {
           const ext = extname(entry.name).toLowerCase();
-          if ([".ts", ".tsx", ".js", ".jsx"].includes(ext)) {
+          if ([".ts", ".tsx", ".ts", ".jsx"].includes(ext)) {
             try {
               const stat = statSync(fullPath);
               if (stat.size < 500 * 1024) {
@@ -303,7 +303,7 @@ export class CodeGraphParser {
     for (const relPath of filePaths) {
       const fullPath = resolve(rootDir, relPath);
       const ext = extname(fullPath).toLowerCase();
-      if ([".ts", ".tsx", ".js", ".jsx", ".py"].includes(ext)) {
+      if ([".ts", ".tsx", ".ts", ".jsx", ".py"].includes(ext)) {
         try {
           if (existsSync(fullPath)) {
             const stat = statSync(fullPath);

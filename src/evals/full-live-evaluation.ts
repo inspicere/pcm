@@ -9,8 +9,8 @@ import {
   buildPAESlots,
   formatSlotsToMarkdown,
   PinnedGuardrailsCache,
-} from "../core/index.js";
-import { MockEmbeddingClient, MockRerankClient } from "./clients.js";
+} from "../core/index.ts";
+import { MockEmbeddingClient, MockRerankClient } from "./clients.ts";
 
 // ============================================================================
 // REAL LIVE EVALUATIONS: PCM vs KÙZU GRAPH RAG vs OBSIDIAN vs MEM0 vs ZEP

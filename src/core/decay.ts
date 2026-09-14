@@ -1,4 +1,4 @@
-import type { Importance } from "../schema/index.js";
+import type { Importance } from "../schema/index.ts";
 
 export const DEFAULT_DECAY_RATE = 0.05; // ~14 day effective half-life
 export const PINNED_STRENGTH = 1.0;

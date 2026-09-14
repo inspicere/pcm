@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { MockEmbeddingClient, MockRerankClient } from "./clients.js";
+import { MockEmbeddingClient, MockRerankClient } from "./clients.ts";
 import {
   getInitialStrength,
   calculateDecayedStrength,
@@ -9,7 +9,7 @@ import {
   buildPAESlots,
   formatSlotsToMarkdown,
   PinnedGuardrailsCache,
-} from "../core/index.js";
+} from "../core/index.ts";
 
 export interface HumanScenario {
   id: string;

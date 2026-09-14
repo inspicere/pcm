@@ -3,7 +3,7 @@ import type {
   AskerContextItem,
   SituationalContextItem,
   AnomalyFlagItem,
-} from "../schema/index.js";
+} from "../schema/index.ts";
 
 export interface BuildPAESlotsParams {
   userQuery: string;

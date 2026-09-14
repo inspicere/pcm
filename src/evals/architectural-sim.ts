@@ -1,12 +1,12 @@
-import { MockEmbeddingClient, MockRerankClient } from "./clients.js";
+import { MockEmbeddingClient, MockRerankClient } from "./clients.ts";
 import {
   getInitialStrength,
   calculateDecayedStrength,
   calculateReRankScore,
   buildPAESlots,
   formatSlotsToMarkdown,
-} from "../core/index.js";
-import { GOLDEN_EVAL_DATASET } from "./dataset.js";
+} from "../core/index.ts";
+import { GOLDEN_EVAL_DATASET } from "./dataset.ts";
 
 export interface BenchmarkRow {
   architecture: string;

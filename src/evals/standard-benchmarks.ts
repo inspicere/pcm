@@ -8,8 +8,8 @@ import {
   buildPAESlots,
   formatSlotsToMarkdown,
   PinnedGuardrailsCache,
-} from "../core/index.js";
-import { MockEmbeddingClient, MockRerankClient } from "./clients.js";
+} from "../core/index.ts";
+import { MockEmbeddingClient, MockRerankClient } from "./clients.ts";
 
 function loadEnv() {
   const envPath = resolve(process.cwd(), ".env");
