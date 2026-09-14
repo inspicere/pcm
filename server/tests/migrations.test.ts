@@ -15,10 +15,10 @@ function migrations(...defs: Array<{ version: number; name: string; apply: (db: 
 }
 
 describe("schema migration runner", () => {
-  test("fresh store starts at the baseline version", () => {
+  test("fresh store starts at the current schema version", () => {
     const store = new TenantStore(trackDir(makeTmpDir()), "alpha");
-    expect(store.storedSchemaVersion()).toBe(BASELINE_SCHEMA_VERSION);
     expect(store.storedSchemaVersion()).toBe(SCHEMA_VERSION);
+    expect(SCHEMA_VERSION).toBeGreaterThan(BASELINE_SCHEMA_VERSION);
     store.close();
   });
 
@@ -70,7 +70,7 @@ describe("schema migration runner", () => {
         },
       },
     );
-    const store = new TenantStore(trackDir(makeTmpDir()), "alpha", list);
+    const store = new TenantStore(trackDir(makeTmpDir()), "alpha", [...SCHEMA_MIGRATIONS, ...list]);
     expect(applied).toEqual(["first", "second"]);
     expect(store.storedSchemaVersion()).toBe(SCHEMA_VERSION + 2);
     store.close();
@@ -149,7 +149,7 @@ describe("schema migration runner", () => {
       apply: (db) => db.exec("ALTER TABLE memories ADD COLUMN tenant_marker TEXT"),
     });
 
-    const alpha = new TenantStore(dir, "alpha", withMigration);
+    const alpha = new TenantStore(dir, "alpha", [...SCHEMA_MIGRATIONS, ...withMigration]);
     const beta = new TenantStore(dir, "beta");
     expect(alpha.storedSchemaVersion()).toBe(SCHEMA_VERSION + 1);
     expect(beta.storedSchemaVersion()).toBe(SCHEMA_VERSION);

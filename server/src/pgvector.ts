@@ -17,6 +17,7 @@ export interface AnnIndex {
     bodyHash: string,
     embedding: Float32Array,
   ): Promise<void>;
+  delete(tenant: string, memoryId: string): Promise<void>;
   search(tenant: string, query: Float32Array, limit: number): Promise<AnnCandidate[]>;
 }
 
@@ -112,6 +113,19 @@ export class PgvectorIndex implements AnnIndex {
       [memoryId, bodyHash, vectorLiteral(embedding)],
     );
     this.stale = false;
+  }
+
+  async delete(tenant: string, memoryId: string): Promise<void> {
+    const table = tableFor(tenant);
+    try {
+      await this.sql.unsafe(`DELETE FROM ${table} WHERE memory_id = $1`, [memoryId]);
+    } catch (err) {
+      if ((err as { code?: string }).code === "42P01") {
+        // Tenant table not created yet (nothing upserted) — nothing to delete.
+        return;
+      }
+      throw err;
+    }
   }
 
   async search(tenant: string, query: Float32Array, limit: number): Promise<AnnCandidate[]> {

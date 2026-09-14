@@ -22,6 +22,8 @@ function rowFixture(overrides: Partial<MemoryRow>): MemoryRow {
     source: null,
     source_ref: null,
     created_at: new Date().toISOString(),
+    retracted_at: null,
+    superseded_by: null,
     ...overrides,
   };
 }
@@ -129,6 +131,7 @@ describe("recall with an ANN index", () => {
       host: "mock",
       ping: async () => true,
       upsert: async () => {},
+      delete: async () => {},
       search: async () => candidates,
     };
   }

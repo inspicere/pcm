@@ -141,6 +141,7 @@ async function main(): Promise<void> {
         const items = splitSessionItems([{ content: body.text }]);
         let ingested = 0;
         let deduplicated = 0;
+        let blocked = 0;
         for (const text of items) {
           const result = await ingestItem(ctx, {
             text,
@@ -150,9 +151,10 @@ async function main(): Promise<void> {
             sourceRef: typeof body.sourceRef === "string" ? body.sourceRef : undefined,
           });
           if (result.deduplicated) deduplicated += 1;
+          else if (result.blocked) blocked += 1;
           else ingested += 1;
         }
-        return Response.json({ tenant, ingested, deduplicated });
+        return Response.json({ tenant, ingested, deduplicated, blocked });
       }
 
       if (url.pathname === "/mcp") {

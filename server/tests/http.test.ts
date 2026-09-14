@@ -64,7 +64,7 @@ describe("pcm-server http", () => {
     const json = await res.json();
     expect(json.status).toBe("ok");
     expect(json.embedding).toBe("fallback");
-    expect(json.schemaVersion).toBe(1);
+    expect(json.schemaVersion).toBe(2);
     expect(json.pgvector).toBe("disabled");
     expect(json.pgvectorHost).toBeNull();
     expect(json.tenants.sort()).toEqual(["alice", "bob"]);
@@ -108,7 +108,13 @@ describe("pcm-server http", () => {
       params: {},
     });
     const toolNames = toolsRes.json.result.tools.map((t: { name: string }) => t.name).sort();
-    expect(toolNames).toEqual(["memvault_ingest", "memvault_recall", "memvault_session_wrap"]);
+    expect(toolNames).toEqual([
+      "memvault_correct",
+      "memvault_ingest",
+      "memvault_recall",
+      "memvault_retract",
+      "memvault_session_wrap",
+    ]);
 
     const ingest = await rpc(ALICE, {
       jsonrpc: "2.0",
@@ -185,6 +191,7 @@ describe("pcm-server http", () => {
       sessionId: "http-sess-1",
       ingested: 1,
       deduplicated: 0,
+      blocked: 0,
     });
   });
 

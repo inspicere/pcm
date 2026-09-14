@@ -180,7 +180,7 @@ export async function recall(
   const queryTokens = tokenize(query);
   const queryEmbedding = await embedder.embed(query);
 
-  const askerItems = selectAskerContext(store.listPinned(), queryTokens);
+  const askerItems = selectAskerContext(store.listPinned(options.includeStale), queryTokens);
 
   let situational: ScoredRow[];
   let annCandidates: AnnCandidate[] | null = null;
@@ -194,7 +194,10 @@ export async function recall(
   }
 
   if (annCandidates && annCandidates.length > 0) {
-    const rows = store.getByIds(annCandidates.map((c) => c.memoryId));
+    const rows = store.getByIds(
+      annCandidates.map((c) => c.memoryId),
+      options.includeStale,
+    );
     const annScored = scoreAnnCandidates(rows, annCandidates, options, now);
     if (annScored.length >= options.k) {
       situational = annScored.slice(0, options.k);
@@ -202,7 +205,7 @@ export async function recall(
       // ANN returned too few live rows: top up from the brute-force path so
       // recall never regresses (covers NULL-embedding rows not yet indexed).
       const bruteScored = rankSituational(
-        store.listNonPinned(),
+        store.listNonPinned(options.includeStale),
         queryTokens,
         queryEmbedding,
         options,
@@ -212,7 +215,7 @@ export async function recall(
     }
   } else {
     situational = rankSituational(
-      store.listNonPinned(),
+      store.listNonPinned(options.includeStale),
       queryTokens,
       queryEmbedding,
       options,

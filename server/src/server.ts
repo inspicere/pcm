@@ -7,7 +7,9 @@ import {
   PinnedGuardrailsCache,
 } from "../../src/index.ts";
 import type { Importance, TenantStore } from "./store.ts";
-import { TenantStore } from "./store.ts";
+import { sha256Hex, TenantStore } from "./store.ts";
+
+export { sha256Hex };
 import type { Embedder } from "./embedder.ts";
 import type { AnnIndex } from "./pgvector.ts";
 import { recall } from "./scoring.ts";
@@ -48,11 +50,13 @@ export const IngestInputSchema = {
 };
 
 export const IngestOutputSchema = {
-  id: z.string(),
+  id: z.string().nullable(),
   bodyHash: z.string(),
   strength: z.number().optional(),
   decayedStrengthNow: z.number().optional(),
   deduplicated: z.boolean(),
+  blocked: z.boolean().optional(),
+  reason: z.string().nullable().optional(),
 };
 
 export const RecallInputSchema = {
@@ -104,11 +108,49 @@ export const SessionWrapOutputSchema = {
   sessionId: z.string(),
   ingested: z.number(),
   deduplicated: z.number(),
+  blocked: z.number(),
 };
 
-export function sha256Hex(text: string): string {
-  return new Bun.CryptoHasher("sha256").update(text).digest("hex");
-}
+export const RetractInputSchema = z
+  .object({
+    text: z.string().trim().min(1).optional(),
+    id: z.string().trim().min(1).optional(),
+    reason: z.string().trim().min(1, "reason is required"),
+  })
+  .refine((v) => Boolean(v.text) !== Boolean(v.id), {
+    message: "exactly one of text/id must be provided",
+  });
+
+export const RetractOutputSchema = {
+  id: z.string(),
+  bodyHash: z.string(),
+  retractedAt: z.string().nullable(),
+  alreadyRetracted: z.boolean(),
+  auditSeq: z.number().nullable(),
+  reason: z.string(),
+};
+
+export const CorrectInputSchema = z
+  .object({
+    oldText: z.string().trim().min(1).optional(),
+    oldId: z.string().trim().min(1).optional(),
+    newText: z.string().trim().min(1, "newText cannot be empty"),
+    reason: z.string().trim().min(1, "reason is required"),
+    importance: z.enum(["pinned", "high", "default"]).optional(),
+  })
+  .refine((v) => Boolean(v.oldText) !== Boolean(v.oldId), {
+    message: "exactly one of oldText/oldId must be provided",
+  });
+
+export const CorrectOutputSchema = {
+  oldId: z.string(),
+  oldHash: z.string(),
+  newId: z.string(),
+  newHash: z.string(),
+  importance: z.enum(["pinned", "high", "default"]),
+  auditSeq: z.number(),
+  reason: z.string(),
+};
 
 export interface TenantContext {
   tenant: string;
@@ -135,9 +177,27 @@ export interface IngestItemInput {
   autoPinInvariant?: boolean;
 }
 
-export function ingestItem(ctx: TenantContext, input: IngestItemInput) {
+export type IngestResult =
+  | {
+      id: string;
+      bodyHash: string;
+      strength: number;
+      decayedStrengthNow: number;
+      deduplicated: false;
+      blocked: false;
+    }
+  | { id: string; bodyHash: string; deduplicated: true }
+  | { id: null; bodyHash: string; blocked: true; reason: string | null; deduplicated: false };
+
+export async function ingestItem(ctx: TenantContext, input: IngestItemInput): Promise<IngestResult> {
   const text = input.text.trim();
   const bodyHash = sha256Hex(text);
+  // Denylist first: a purged hash has no row left, and even when a live row
+  // still exists the policy block must win over dedup. A block is a normal
+  // policy outcome, not an error, so this returns instead of throwing.
+  if (ctx.store.isDenied(bodyHash)) {
+    return { id: null, bodyHash, blocked: true, reason: ctx.store.deniedReason(bodyHash), deduplicated: false };
+  }
   const existing = ctx.store.getByHash(bodyHash);
   if (existing) {
     return { id: existing.id, bodyHash, deduplicated: true };
@@ -154,38 +214,38 @@ export function ingestItem(ctx: TenantContext, input: IngestItemInput) {
   // flow into scoring and defeat the stale filter (finding 2.H2).
   const occurredAt = validateOccurredAt(input.occurredAt) ?? new Date().toISOString();
 
-  return ctx.embedder.embed(text).then(async (embedding) => {
-    const row = ctx.store.insert({
-      id: crypto.randomUUID(),
-      bodyHash,
-      text,
-      importance,
-      strength,
-      occurredAt,
-      embedding,
-      source: input.source,
-      sourceRef: input.sourceRef,
-    });
-    if (embedding && ctx.pgvector) {
-      await ctx.pgvector.upsert(ctx.tenant, row.id, row.body_hash, embedding).catch((err) => {
-        console.warn(`pgvector upsert failed for tenant ${ctx.tenant}: ${(err as Error).message}`);
-      });
-    }
-    return {
-      id: row.id,
-      bodyHash,
-      strength: row.strength,
-      decayedStrengthNow: calculateDecayedStrength(
-        row.strength,
-        0,
-        row.boost_count,
-        row.importance,
-        ctx.decayRate,
-        row.text,
-      ),
-      deduplicated: false,
-    };
+  const embedding = await ctx.embedder.embed(text);
+  const row = ctx.store.insert({
+    id: crypto.randomUUID(),
+    bodyHash,
+    text,
+    importance,
+    strength,
+    occurredAt,
+    embedding,
+    source: input.source,
+    sourceRef: input.sourceRef,
   });
+  if (embedding && ctx.pgvector) {
+    await ctx.pgvector.upsert(ctx.tenant, row.id, row.body_hash, embedding).catch((err) => {
+      console.warn(`pgvector upsert failed for tenant ${ctx.tenant}: ${(err as Error).message}`);
+    });
+  }
+  return {
+    id: row.id,
+    bodyHash,
+    strength: row.strength,
+    decayedStrengthNow: calculateDecayedStrength(
+      row.strength,
+      0,
+      row.boost_count,
+      row.importance,
+      ctx.decayRate,
+      row.text,
+    ),
+    deduplicated: false,
+    blocked: false,
+  };
 }
 
 export function splitSessionItems(turns: Array<{ content: string }>, maxChars = 500): string[] {
@@ -204,6 +264,14 @@ export function splitSessionItems(turns: Array<{ content: string }>, maxChars = 
   return items;
 }
 
+/** SQLite stays authoritative; the ANN index is only ever best-effort. */
+async function deleteFromAnnBestEffort(ctx: TenantContext, memoryId: string): Promise<void> {
+  if (!ctx.pgvector) return;
+  await ctx.pgvector.delete(ctx.tenant, memoryId).catch((err) => {
+    console.warn(`pgvector delete failed for tenant ${ctx.tenant}: ${(err as Error).message}`);
+  });
+}
+
 export function createMcpServer(ctx: TenantContext): McpServer {
   const server = new McpServer({ name: "pcm-memvault", version: "0.1.0" });
 
@@ -218,6 +286,80 @@ export function createMcpServer(ctx: TenantContext): McpServer {
     },
     async (params) => {
       const result = await ingestItem(ctx, { ...params, autoPinInvariant: true });
+      return {
+        structuredContent: result,
+        content: [{ type: "text", text: JSON.stringify(result) }],
+      };
+    },
+  );
+
+  server.registerTool(
+    "memvault_retract",
+    {
+      title: "Retract a memory",
+      description:
+        "Soft-delete a memory (exactly one of text/id): excluded from all recall read paths, but the row stays so re-ingesting the same text still deduplicates and never un-retracts (D1). Idempotent — retracting an already-retracted memory writes no second audit row. Writes a 'retract' row to the append-only corrections log.",
+      inputSchema: RetractInputSchema,
+      outputSchema: RetractOutputSchema,
+    },
+    async (params) => {
+      const target = params.id ? { id: params.id } : { bodyHash: sha256Hex(params.text!.trim()) };
+      const { row, correction } = ctx.store.retract(target, params.reason);
+      await deleteFromAnnBestEffort(ctx, row.id);
+      const result = {
+        id: row.id,
+        bodyHash: row.body_hash,
+        retractedAt: row.retracted_at,
+        alreadyRetracted: correction === null,
+        auditSeq: correction?.seq ?? null,
+        reason: params.reason,
+      };
+      return {
+        structuredContent: result,
+        content: [{ type: "text", text: JSON.stringify(result) }],
+      };
+    },
+  );
+
+  server.registerTool(
+    "memvault_correct",
+    {
+      title: "Correct a memory",
+      description:
+        "Replace a memory (exactly one of oldText/oldId) with corrected text: the old row is retracted and a new live row is inserted with superseded_by linkage, transactionally, with a 'correct' audit row carrying both hashes. The replacement takes the caller-specified importance (default 'high') and never inherits 'pinned' from the target (D4). Rejects self-correction (newText identical to the old text).",
+      inputSchema: CorrectInputSchema,
+      outputSchema: CorrectOutputSchema,
+    },
+    async (params) => {
+      const target = params.oldId ? { id: params.oldId } : { bodyHash: sha256Hex(params.oldText!.trim()) };
+      const { oldRow, newRow, correction } = ctx.store.correct(
+        target,
+        params.newText,
+        params.reason,
+        params.importance ?? "high",
+      );
+      await deleteFromAnnBestEffort(ctx, oldRow.id);
+      // Best-effort embedding of the replacement, mirroring ingestItem's policy.
+      const embedding = await ctx.embedder.embed(params.newText.trim()).catch(() => null);
+      if (embedding) {
+        ctx.store.updateEmbedding(newRow.id, embedding);
+        if (ctx.pgvector) {
+          await ctx.pgvector
+            .upsert(ctx.tenant, newRow.id, newRow.body_hash, embedding)
+            .catch((err) => {
+              console.warn(`pgvector upsert failed for tenant ${ctx.tenant}: ${(err as Error).message}`);
+            });
+        }
+      }
+      const result = {
+        oldId: oldRow.id,
+        oldHash: oldRow.body_hash,
+        newId: newRow.id,
+        newHash: newRow.body_hash,
+        importance: newRow.importance,
+        auditSeq: correction.seq,
+        reason: params.reason,
+      };
       return {
         structuredContent: result,
         content: [{ type: "text", text: JSON.stringify(result) }],
@@ -257,6 +399,7 @@ export function createMcpServer(ctx: TenantContext): McpServer {
       const items = splitSessionItems(params.turns);
       let ingested = 0;
       let deduplicated = 0;
+      let blocked = 0;
       for (const text of items) {
         const result = await ingestItem(ctx, {
           text,
@@ -266,9 +409,10 @@ export function createMcpServer(ctx: TenantContext): McpServer {
           sourceRef: params.sessionId,
         });
         if (result.deduplicated) deduplicated += 1;
+        else if (result.blocked) blocked += 1;
         else ingested += 1;
       }
-      const result = { sessionId: params.sessionId, ingested, deduplicated };
+      const result = { sessionId: params.sessionId, ingested, deduplicated, blocked };
       return {
         structuredContent: result,
         content: [{ type: "text", text: JSON.stringify(result) }],
