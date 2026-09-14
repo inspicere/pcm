@@ -84,10 +84,10 @@ function insertRow(store: TenantStore, id: string, text: string): void {
   });
 }
 
-describe("schema v2 corrections migration", () => {
-  test("fresh store opens at v2 with corrections columns and tables", () => {
+describe("schema v2+v3 corrections/actor migrations", () => {
+  test("fresh store opens at v3 with corrections columns, tables and actor", () => {
     const store = new TenantStore(trackDir(makeTmpDir()), "alpha");
-    expect(store.storedSchemaVersion()).toBe(2);
+    expect(store.storedSchemaVersion()).toBe(3);
     expect(store.storedSchemaVersion()).toBe(SCHEMA_VERSION);
 
     const cols = store.db.prepare("PRAGMA table_info(memories)").all() as Array<{ name: string }>;
@@ -99,10 +99,15 @@ describe("schema v2 corrections migration", () => {
       .all() as Array<{ name: string }>;
     expect(tables.map((t) => t.name)).toContain("corrections");
     expect(tables.map((t) => t.name)).toContain("purged_hashes");
+
+    const correctionCols = store.db.prepare("PRAGMA table_info(corrections)").all() as Array<{
+      name: string;
+    }>;
+    expect(correctionCols.map((c) => c.name)).toContain("actor");
     store.close();
   });
 
-  test("a v1 database upgrades to v2 and reopening is idempotent", () => {
+  test("a v1 database upgrades to v3 and reopening is idempotent", () => {
     const dir = trackDir(makeTmpDir());
 
     // open with an empty migration list to pin the database at the v1 baseline
@@ -110,12 +115,12 @@ describe("schema v2 corrections migration", () => {
     expect(v1.storedSchemaVersion()).toBe(BASELINE_SCHEMA_VERSION);
     v1.close();
 
-    const v2 = new TenantStore(dir, "alpha");
-    expect(v2.storedSchemaVersion()).toBe(2);
-    v2.close();
+    const v3 = new TenantStore(dir, "alpha");
+    expect(v3.storedSchemaVersion()).toBe(3);
+    v3.close();
 
     const reopened = new TenantStore(dir, "alpha");
-    expect(reopened.storedSchemaVersion()).toBe(2);
+    expect(reopened.storedSchemaVersion()).toBe(3);
     const correctionCols = reopened.db.prepare("PRAGMA table_info(corrections)").all() as Array<{
       name: string;
     }>;
@@ -127,6 +132,7 @@ describe("schema v2 corrections migration", () => {
       "reason",
       "occurred_at",
       "created_at",
+      "actor",
     ]);
     const purgedCols = reopened.db.prepare("PRAGMA table_info(purged_hashes)").all() as Array<{
       name: string;
@@ -638,6 +644,9 @@ describe("REST /ingest denylist reporting", () => {
         PCM_HOST: "127.0.0.1",
         PCM_DATA_DIR: dataDir,
         PCM_TOKENS: `carol=${CAROL}`,
+        PCM_OPERATOR_TOKENS: "ops=ops-test-token",
+        PCM_OPERATOR_HOST: "127.0.0.1",
+        PCM_OPERATOR_PORT: "3795",
       },
       stdout: "inherit",
       stderr: "inherit",

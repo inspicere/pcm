@@ -4,10 +4,16 @@ import { DEFAULT_DECAY_RATE } from "../../src/index.ts";
 import { createEmbedder } from "./embedder.ts";
 import { createPgvectorIndex } from "./pgvector.ts";
 import { createMcpServer, ingestItem, splitSessionItems, TenantRegistry, sha256Hex, validateOccurredAt } from "./server.ts";
+import { createOperatorConsole } from "./console.ts";
 import { SCHEMA_VERSION } from "./store.ts";
 
 export interface TenantToken {
   tenant: string;
+  digest: Buffer;
+}
+
+export interface OperatorToken {
+  name: string;
   digest: Buffer;
 }
 
@@ -21,6 +27,12 @@ export interface PcmConfig {
   embeddingModel: string;
   decayRate: number;
   pgvectorDsn: string | null;
+}
+
+export interface OperatorConfig {
+  host: string;
+  port: number;
+  tokens: OperatorToken[];
 }
 
 export function parseTokens(raw: string): TenantToken[] {
@@ -58,6 +70,43 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): PcmConfig {
   };
 }
 
+export function parseOperatorTokens(raw: string): OperatorToken[] {
+  return raw
+    .split(",")
+    .map((pair) => pair.trim())
+    .filter((pair) => pair.length > 0)
+    .map((pair) => {
+      const idx = pair.indexOf("=");
+      if (idx <= 0) {
+        throw new Error(`invalid PCM_OPERATOR_TOKENS entry: "${pair}" (expected name=TOKEN)`);
+      }
+      const name = pair.slice(0, idx).trim();
+      const token = pair.slice(idx + 1).trim();
+      if (!name || !token) {
+        throw new Error(`invalid PCM_OPERATOR_TOKENS entry: "${pair}" (expected name=TOKEN)`);
+      }
+      return { name, digest: Buffer.from(sha256Hex(token), "hex") };
+    });
+}
+
+/**
+ * The operator console listener is configured separately from the tenant API
+ * on purpose: a misconfigured PCM_OPERATOR_TOKENS fails with its own error
+ * path instead of being silently absorbed (or disabling) the tenant config.
+ * Both are fatal — the server refuses to boot half-configured.
+ */
+export function loadOperatorConfig(env: NodeJS.ProcessEnv = process.env): OperatorConfig {
+  const raw = env.PCM_OPERATOR_TOKENS;
+  if (!raw || raw.trim().length === 0) {
+    throw new Error("PCM_OPERATOR_TOKENS is required (format: root=TOKEN1,ops=TOKEN2)");
+  }
+  return {
+    host: env.PCM_OPERATOR_HOST ?? "0.0.0.0",
+    port: Number(env.PCM_OPERATOR_PORT ?? 3601),
+    tokens: parseOperatorTokens(raw),
+  };
+}
+
 export function verifyToken(config: PcmConfig, authorization: string | null): string | null {
   if (!authorization) return null;
   const match = /^Bearer\s+(.+)$/i.exec(authorization.trim());
@@ -76,7 +125,14 @@ async function main(): Promise<void> {
   try {
     config = loadConfig();
   } catch (err) {
-    console.error(`fatal: ${(err as Error).message}`);
+    console.error(`fatal: tenant API misconfig: ${(err as Error).message}`);
+    process.exit(1);
+  }
+  let operatorConfig: OperatorConfig;
+  try {
+    operatorConfig = loadOperatorConfig();
+  } catch (err) {
+    console.error(`fatal: operator console misconfig: ${(err as Error).message}`);
     process.exit(1);
   }
 
@@ -182,6 +238,21 @@ async function main(): Promise<void> {
 
   console.log(
     `pcm-server listening on ${config.host}:${server.port} (tenants: ${tenantNames.join(", ")}, embedding: ${embedder.mode}, pgvector: ${pgvector?.status ?? "disabled"})`,
+  );
+
+  const operatorNames = operatorConfig.tokens.map((t) => t.name);
+  const operatorConsole = createOperatorConsole({
+    operators: operatorConfig.tokens,
+    tenants: tenantNames,
+    registry,
+  });
+  const operatorServer = Bun.serve({
+    hostname: operatorConfig.host,
+    port: operatorConfig.port,
+    fetch: (req) => operatorConsole.fetch(req),
+  });
+  console.log(
+    `pcm-operator-console listening on ${operatorConfig.host}:${operatorServer.port} (operators: ${operatorNames.join(", ")})`,
   );
 }
 
