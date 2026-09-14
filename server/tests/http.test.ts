@@ -224,4 +224,76 @@ describe("pcm-server http", () => {
     );
     expect(texts.some((t: string) => t.includes("snapshot cadence"))).toBe(true);
   });
+
+  test("REST /ingest rejects malformed and far-future occurredAt", async () => {
+    const headers = { "content-type": "application/json", authorization: `Bearer ${ALICE}` };
+
+    for (const occurredAt of ["not-a-date", "2036-01-01T00:00:00Z"]) {
+      const res = await fetch(`${BASE}/ingest`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          text: "A perfectly ordinary memory block with enough characters to pass the splitter.",
+          occurredAt,
+        }),
+      });
+      expect(res.status).toBe(400);
+      const payload = await res.json();
+      expect(payload.error).toMatch(/occurredAt/);
+    }
+  });
+
+  test("memvault_ingest rejects far-future occurredAt as a tool error", async () => {
+    const res = await rpc(ALICE, {
+      jsonrpc: "2.0",
+      id: 8,
+      method: "tools/call",
+      params: {
+        name: "memvault_ingest",
+        arguments: {
+          text: "Another ordinary memory block, long enough to be its own paragraph here.",
+          occurredAt: "2036-01-01T00:00:00Z",
+        },
+      },
+    });
+    expect(res.status).toBe(200);
+    expect(res.json.result.isError).toBe(true);
+  });
+
+  test("a row with an unparseable occurred_at never passes the stale filter", async () => {
+    const { TenantStore } = await import("../src/store.ts");
+    const store = new TenantStore(dataDir, "alice");
+    store.insert({
+      id: "deadbeef-dead-4ead-bead-deadbeef0001",
+      bodyHash: "0".repeat(64),
+      text: "Corrupt dated memory about the VLAN70 dhcp migration scope leftovers.",
+      importance: "default",
+      strength: 0.7,
+      occurredAt: "banana",
+      embedding: null,
+    });
+    store.close();
+
+    const live = await rpc(ALICE, {
+      jsonrpc: "2.0",
+      id: 9,
+      method: "tools/call",
+      params: { name: "memvault_recall", arguments: { query: "VLAN70 dhcp migration" } },
+    });
+    const liveTexts = live.json.result.structuredContent.slots.situational_context.map(
+      (item: { text: string }) => item.text,
+    );
+    expect(liveTexts.some((t: string) => t.includes("Corrupt dated memory"))).toBe(false);
+
+    const withStale = await rpc(ALICE, {
+      jsonrpc: "2.0",
+      id: 10,
+      method: "tools/call",
+      params: { name: "memvault_recall", arguments: { query: "VLAN70 dhcp migration", includeStale: true } },
+    });
+    const staleTexts = withStale.json.result.structuredContent.slots.situational_context.map(
+      (item: { text: string }) => item.text,
+    );
+    expect(staleTexts.some((t: string) => t.includes("Corrupt dated memory"))).toBe(true);
+  });
 });

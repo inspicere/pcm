@@ -119,7 +119,8 @@ export function rankSituational(
       options.decayRate,
       row.text,
     );
-    if (decayed < STALE_THRESHOLD && !options.includeStale) continue;
+    // NaN comparisons are always false, which would keep unparseable-date rows (2.H2)
+    if (!(decayed >= STALE_THRESHOLD) && !options.includeStale) continue;
     scored.push({ row, decayed, score: retrievalScore * decayed });
   }
   scored.sort((a, b) => b.score - a.score || b.row.occurred_at.localeCompare(a.row.occurred_at));
@@ -146,7 +147,8 @@ export function scoreAnnCandidates(
       options.decayRate,
       row.text,
     );
-    if (decayed < STALE_THRESHOLD && !options.includeStale) continue;
+    // NaN comparisons are always false, which would keep unparseable-date rows (2.H2)
+    if (!(decayed >= STALE_THRESHOLD) && !options.includeStale) continue;
     scored.push({ row, decayed, score: (1 - distance) * decayed });
   }
   scored.sort((a, b) => b.score - a.score || b.row.occurred_at.localeCompare(a.row.occurred_at));

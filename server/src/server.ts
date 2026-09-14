@@ -18,6 +18,27 @@ const OccurredAtSchema = z
   .optional()
   .or(z.string().datetime().optional());
 
+/**
+ * A future occurredAt clamps to zero elapsed time in the decay math, which
+ * grants permanent decay immunity without needing importance=pinned (audit
+ * finding 1.H2). Reject anything beyond a small clock-skew window. Callers
+ * that speak HTTP should turn the throw into a 4xx; the MCP tool surface
+ * surfaces it as a tool error.
+ */
+export const MAX_FUTURE_SKEW_MS = 24 * 60 * 60 * 1000;
+
+export function validateOccurredAt(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined;
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`occurredAt must be an ISO-8601 datetime, got '${value}'`);
+  }
+  if (parsed > Date.now() + MAX_FUTURE_SKEW_MS) {
+    throw new Error(`occurredAt is more than 24h in the future (${value})`);
+  }
+  return value;
+}
+
 export const IngestInputSchema = {
   text: z.string().trim().min(1, "Memory text cannot be empty"),
   importance: z.enum(["pinned", "high", "default"]).default("default"),
@@ -129,7 +150,9 @@ export function ingestItem(ctx: TenantContext, input: IngestItemInput) {
   // getInitialStrength also auto-pins invariant text internally; only consult
   // text-patterns when the caller opted into invariant auto-pinning (F4).
   const strength = getInitialStrength(importance, input.autoPinInvariant ? text : undefined);
-  const occurredAt = input.occurredAt ?? new Date().toISOString();
+  // Throws on malformed or far-future values; a NaN date would otherwise
+  // flow into scoring and defeat the stale filter (finding 2.H2).
+  const occurredAt = validateOccurredAt(input.occurredAt) ?? new Date().toISOString();
 
   return ctx.embedder.embed(text).then(async (embedding) => {
     const row = ctx.store.insert({

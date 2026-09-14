@@ -3,7 +3,7 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { DEFAULT_DECAY_RATE } from "../../src/index.ts";
 import { createEmbedder } from "./embedder.ts";
 import { createPgvectorIndex } from "./pgvector.ts";
-import { createMcpServer, ingestItem, splitSessionItems, TenantRegistry, sha256Hex } from "./server.ts";
+import { createMcpServer, ingestItem, splitSessionItems, TenantRegistry, sha256Hex, validateOccurredAt } from "./server.ts";
 import { SCHEMA_VERSION } from "./store.ts";
 
 export interface TenantToken {
@@ -127,6 +127,14 @@ async function main(): Promise<void> {
         if (!body || typeof body.text !== "string" || body.text.trim().length === 0) {
           return Response.json({ error: "text is required" }, { status: 400 });
         }
+        let occurredAt: string | undefined;
+        if (typeof body.occurredAt === "string") {
+          try {
+            occurredAt = validateOccurredAt(body.occurredAt);
+          } catch (err) {
+            return Response.json({ error: (err as Error).message }, { status: 400 });
+          }
+        }
         const ctx = registry.get(tenant);
         // Page-level granularity degrades recall; split into paragraph blocks
         // (same rule as session_wrap), sharing one sourceRef.
@@ -137,7 +145,7 @@ async function main(): Promise<void> {
           const result = await ingestItem(ctx, {
             text,
             importance: "default",
-            occurredAt: typeof body.occurredAt === "string" ? body.occurredAt : undefined,
+            occurredAt,
             source: typeof body.source === "string" ? body.source : "api",
             sourceRef: typeof body.sourceRef === "string" ? body.sourceRef : undefined,
           });
