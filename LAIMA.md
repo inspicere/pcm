@@ -82,14 +82,18 @@ Deploys build from `laima/services/pcm-server` (ansible `pcm-build.yml`) — tha
 artifact until we deliberately switch it. Per release:
 
 1. Tag this repo `laima-vX.Y.Z` at a tested `laima/main`.
-2. Run `scripts/sync-to-laima.sh <tag>` — vendors `src/` → laima `services/pcm-server/vendor/pcm-core/`
-   (re-applying the `.ts` extension rewrite) and copies `server/` → `services/pcm-server/`
-   (excluding `vendor/`), as a **reviewable working-tree change** in laima; laima commits it with
+2. Run `scripts/sync-to-laima.sh <tag>` — rsyncs `server/` → laima `services/pcm-server/`
+   (excluding laima's deploy files: `vendor/`, `Dockerfile`, `bun.lock`, `node_modules/`) and
+   vendors `src/{core,schema,index.ts}` → `vendor/pcm-core/` (excluding `graph/`/`evals/`,
+   filtering the one `graph` re-export line from the vendored `index.ts`; fork `src/` already
+   carries the `.ts` extensions so no rewrite step). `DRY_RUN=1` previews. The script never
+   commits — it leaves a **reviewable working-tree change** in laima; laima commits it with
    the normal `titan()` convention.
 3. Deploy with the existing playbooks.
 
-The sync script is not written yet; until it exists, do the vendoring manually and keep
-`vendor/pcm-core` diffs extension-only.
+Known drift the first sync fixes: laima's vendored `prompt-builder.ts` still carried the
+fixture-based supersession stub (audit finding 12.C1) — the merge of the resolver
+(`43c8bcb`) only existed here until this sync existed.
 
 ## Rules
 
