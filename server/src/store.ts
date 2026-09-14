@@ -2,7 +2,28 @@ import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-export const SCHEMA_VERSION = 1;
+/**
+ * Version of a freshly created database (the original v1 schema).
+ */
+export const BASELINE_SCHEMA_VERSION = 1;
+
+export interface SchemaMigration {
+  /** Schema version after this migration applies. Must be sequential. */
+  readonly version: number;
+  readonly name: string;
+  apply(db: Database): void;
+}
+
+/**
+ * Ordered, sequential migrations. Empty today; later branches append here
+ * (corrections v2, etc.). The code refuses to open a database newer than
+ * SCHEMA_VERSION, and refuses a gap in the sequence, rather than guessing.
+ */
+export const SCHEMA_MIGRATIONS: readonly SchemaMigration[] = [];
+
+export const SCHEMA_VERSION = SCHEMA_MIGRATIONS.length
+  ? SCHEMA_MIGRATIONS[SCHEMA_MIGRATIONS.length - 1]!.version
+  : BASELINE_SCHEMA_VERSION;
 
 export type Importance = "pinned" | "high" | "default";
 
@@ -62,8 +83,9 @@ CREATE TABLE IF NOT EXISTS meta (
 export class TenantStore {
   readonly tenant: string;
   readonly db: Database;
+  private readonly storedVersion: number;
 
-  constructor(dataDir: string, tenant: string) {
+  constructor(dataDir: string, tenant: string, migrations: readonly SchemaMigration[] = SCHEMA_MIGRATIONS) {
     this.tenant = tenant;
     const dir = join(dataDir, tenant);
     mkdirSync(dir, { recursive: true });
@@ -71,9 +93,67 @@ export class TenantStore {
     this.db.exec("PRAGMA journal_mode = WAL;");
     this.db.exec(MEMORIES_DDL);
     this.db.exec(META_DDL);
-    this.db
-      .prepare("INSERT OR IGNORE INTO meta (key, value) VALUES ('schema_version', ?)")
-      .run(String(SCHEMA_VERSION));
+    this.storedVersion = this.runMigrations(migrations);
+  }
+
+  /**
+   * Applies pending migrations in order, each in its own transaction, and
+   * returns the resulting stored version. Fails loudly: a stored version
+   * newer than the code, a non-sequential migration list, a corrupt version
+   * string, or a failing migration all throw — the store refuses to open
+   * rather than run against an unknown schema.
+   */
+  private runMigrations(migrations: readonly SchemaMigration[]): number {
+    const existing = this.db
+      .prepare("SELECT value FROM meta WHERE key = 'schema_version'")
+      .get() as { value: string } | undefined;
+
+    if (!existing) {
+      this.db
+        .prepare("INSERT INTO meta (key, value) VALUES ('schema_version', ?)")
+        .run(String(BASELINE_SCHEMA_VERSION));
+    }
+
+    const raw = existing?.value ?? String(BASELINE_SCHEMA_VERSION);
+    let current = Number.parseInt(raw, 10);
+    if (!Number.isInteger(current) || current < 1) {
+      throw new Error(`tenant ${this.tenant}: corrupt schema_version '${raw}' in meta`);
+    }
+    // "Code" for this open is the baseline plus the migrations in force: the
+    // target is the last declared version, not the build-wide constant (which
+    // only reflects the default production list).
+    const target = migrations.length
+      ? migrations[migrations.length - 1]!.version
+      : BASELINE_SCHEMA_VERSION;
+    if (current > target) {
+      throw new Error(
+        `tenant ${this.tenant}: database schema v${current} is newer than this code supports (v${target}); upgrade pcm-server`,
+      );
+    }
+
+    for (const migration of migrations) {
+      if (migration.version <= current) continue;
+      if (migration.version !== current + 1) {
+        throw new Error(
+          `tenant ${this.tenant}: migration gap (at v${current}, next declared is v${migration.version} '${migration.name}')`,
+        );
+      }
+      const apply = this.db.transaction(() => {
+        migration.apply(this.db);
+        this.db
+          .prepare("UPDATE meta SET value = ? WHERE key = 'schema_version'")
+          .run(String(migration.version));
+      });
+      apply();
+      current = migration.version;
+    }
+
+    return current;
+  }
+
+  /** Schema version actually stored in this tenant's database. */
+  storedSchemaVersion(): number {
+    return this.storedVersion;
   }
 
   getByHash(bodyHash: string): MemoryRow | null {

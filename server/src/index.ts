@@ -4,6 +4,7 @@ import { DEFAULT_DECAY_RATE } from "../../src/index.ts";
 import { createEmbedder } from "./embedder.ts";
 import { createPgvectorIndex } from "./pgvector.ts";
 import { createMcpServer, ingestItem, splitSessionItems, TenantRegistry, sha256Hex } from "./server.ts";
+import { SCHEMA_VERSION } from "./store.ts";
 
 export interface TenantToken {
   tenant: string;
@@ -108,7 +109,10 @@ async function main(): Promise<void> {
           status: "ok",
           tenants: tenantNames,
           embedding: embedder.mode,
-          schemaVersion: 1,
+          schemaVersion: SCHEMA_VERSION,
+          tenantStores: registry
+            .opened()
+            .map((ctx) => ({ tenant: ctx.tenant, schemaVersion: ctx.store.storedSchemaVersion() })),
           pgvector: pgvector?.status ?? "disabled",
           pgvectorHost: pgvector?.host ?? null,
         });

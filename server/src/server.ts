@@ -285,4 +285,9 @@ export class TenantRegistry {
   tenantNames(): string[] {
     return [...this.tenants.keys()];
   }
+
+  /** Already-opened tenant contexts; never opens new stores. */
+  opened(): TenantContext[] {
+    return [...this.tenants.values()];
+  }
 }
