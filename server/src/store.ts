@@ -58,6 +58,19 @@ export const SCHEMA_MIGRATIONS: readonly SchemaMigration[] = [
       `);
     },
   },
+  {
+    version: 3,
+    name: "operator-actor",
+    apply(db) {
+      // Who drove the correction: NULL = agent/tool actions via MCP; the
+      // operator console passes the signed-in operator name. Guarded DDL so
+      // reopening an already-migrated store does not re-ADD the column.
+      const cols = db.prepare("PRAGMA table_info(corrections)").all() as Array<{ name: string }>;
+      if (!cols.some((c) => c.name === "actor")) {
+        db.exec("ALTER TABLE corrections ADD COLUMN actor TEXT");
+      }
+    },
+  },
 ];
 
 export const SCHEMA_VERSION = SCHEMA_MIGRATIONS.length
@@ -97,12 +110,28 @@ export interface CorrectionRow {
   reason: string;
   occurred_at: string;
   created_at: string;
+  /** Who drove the action: operator name from the console, NULL for agents/tools. */
+  actor: string | null;
 }
 
 /** Exactly one of id / bodyHash must be set. */
 export interface CorrectionTarget {
   id?: string;
   bodyHash?: string;
+}
+
+/** Operator-console memory browser filter. Omitted/null fields match all. */
+export interface MemoryListQuery {
+  importance?: Importance | "all";
+  status?: "live" | "retracted" | "all";
+  source?: string | null;
+  search?: string;
+  limit?: number;
+}
+
+/** LIKE pattern metacharacters neutralized (best-effort substring search). */
+function likeEscape(raw: string): string {
+  return raw.replace(/[\\%_]/g, (ch) => `\\${ch}`);
 }
 
 export interface InsertMemoryInput {
@@ -246,12 +275,40 @@ export class TenantStore {
   }
 
   /** Idempotent: re-denying a hash keeps the original row (and its reason). */
-  denyHash(bodyHash: string, reason: string): void {
-    this.db
+  denyHash(bodyHash: string, reason: string, actor?: string): void {
+    if (this.denyHashInternal(bodyHash, reason)) {
+      this.appendCorrection("deny", bodyHash, null, reason, new Date().toISOString(), actor ?? null);
+    }
+  }
+
+  /**
+   * Shared denylist write. sanitize() uses this directly so a purge logs
+   * exactly one 'purge' row (not a redundant 'deny' row on top).
+   * @returns true when the deny actually landed (false = already denied).
+   */
+  private denyHashInternal(bodyHash: string, reason: string): boolean {
+    const info = this.db
       .prepare(
         "INSERT OR IGNORE INTO purged_hashes (body_hash, reason, created_at) VALUES (?, ?, ?)",
       )
       .run(bodyHash, reason, new Date().toISOString());
+    return info.changes > 0;
+  }
+
+  /** Most recent denies first. Read-only. */
+  listDenied(limit = 200): Array<{ body_hash: string; reason: string; created_at: string }> {
+    return this.db
+      .prepare("SELECT body_hash, reason, created_at FROM purged_hashes ORDER BY created_at DESC LIMIT ?")
+      .all(limit) as unknown as Array<{ body_hash: string; reason: string; created_at: string }>;
+  }
+
+  /** Distinct non-null sources, for the console browser's source filter. */
+  listSources(): string[] {
+    return (
+      this.db
+        .prepare("SELECT DISTINCT source FROM memories WHERE source IS NOT NULL ORDER BY source")
+        .all() as unknown as Array<{ source: string }>
+    ).map((row) => row.source);
   }
 
   /** Appends one row to the append-only corrections log. Internal use. */
@@ -261,14 +318,15 @@ export class TenantStore {
     newHash: string | null,
     reason: string,
     occurredAt: string,
+    actor?: string,
   ): CorrectionRow {
     const createdAt = new Date().toISOString();
     const info = this.db
       .prepare(
-        `INSERT INTO corrections (action, body_hash, new_hash, reason, occurred_at, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO corrections (action, body_hash, new_hash, reason, occurred_at, created_at, actor)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(action, bodyHash, newHash, reason, occurredAt, createdAt);
+      .run(action, bodyHash, newHash, reason, occurredAt, createdAt, actor ?? null);
     return {
       seq: Number(info.lastInsertRowid),
       action,
@@ -277,6 +335,7 @@ export class TenantStore {
       reason,
       occurred_at: occurredAt,
       created_at: createdAt,
+      actor: actor ?? null,
     };
   }
 
@@ -311,6 +370,7 @@ export class TenantStore {
     target: CorrectionTarget,
     reason: string,
     occurredAt?: string,
+    actor?: string,
   ): { row: MemoryRow; correction: CorrectionRow | null } {
     const row = this.resolveTarget(target);
     if (row.retracted_at !== null) {
@@ -319,7 +379,7 @@ export class TenantStore {
     const ts = occurredAt ?? new Date().toISOString();
     const apply = this.db.transaction(() => {
       this.db.prepare("UPDATE memories SET retracted_at = ? WHERE id = ?").run(ts, row.id);
-      return this.appendCorrection("retract", row.body_hash, null, reason, ts);
+      return this.appendCorrection("retract", row.body_hash, null, reason, ts, actor);
     });
     const correction = apply();
     return { row: this.getById(row.id)!, correction };
@@ -330,6 +390,7 @@ export class TenantStore {
     target: CorrectionTarget,
     reason: string,
     occurredAt?: string,
+    actor?: string,
   ): { row: MemoryRow; correction: CorrectionRow | null } {
     const row = this.resolveTarget(target);
     if (row.retracted_at === null) {
@@ -338,7 +399,7 @@ export class TenantStore {
     const ts = occurredAt ?? new Date().toISOString();
     const apply = this.db.transaction(() => {
       this.db.prepare("UPDATE memories SET retracted_at = NULL WHERE id = ?").run(row.id);
-      return this.appendCorrection("unretract", row.body_hash, null, reason, ts);
+      return this.appendCorrection("unretract", row.body_hash, null, reason, ts, actor);
     });
     const correction = apply();
     return { row: this.getById(row.id)!, correction };
@@ -358,6 +419,7 @@ export class TenantStore {
     reason: string,
     importance: Importance = "high",
     occurredAt?: string,
+    actor?: string,
   ): { oldRow: MemoryRow; newRow: MemoryRow; correction: CorrectionRow } {
     const oldRow = this.resolveTarget(target);
     const text = newText.trim();
@@ -373,7 +435,7 @@ export class TenantStore {
     }
     const ts = occurredAt ?? new Date().toISOString();
     const apply = this.db.transaction(() => {
-      const correction = this.appendCorrection("correct", oldRow.body_hash, newHash, reason, ts);
+      const correction = this.appendCorrection("correct", oldRow.body_hash, newHash, reason, ts, actor);
       this.db.prepare("UPDATE memories SET retracted_at = ? WHERE id = ?").run(ts, oldRow.id);
       const newRow = this.insert({
         id: crypto.randomUUID(),
@@ -403,13 +465,40 @@ export class TenantStore {
     target: CorrectionTarget,
     reason: string,
     occurredAt?: string,
+    actor?: string,
   ): { row: MemoryRow; correction: CorrectionRow } {
     const row = this.resolveTarget(target);
     const ts = occurredAt ?? new Date().toISOString();
-    this.denyHash(row.body_hash, reason);
-    const correction = this.appendCorrection("purge", row.body_hash, null, reason, ts);
+    this.denyHashInternal(row.body_hash, reason);
+    const correction = this.appendCorrection("purge", row.body_hash, null, reason, ts, actor);
     this.db.prepare("DELETE FROM memories WHERE id = ?").run(row.id);
     return { row, correction };
+  }
+
+  /**
+   * Transactional pin/unpin/tier change. The row takes the standard initial
+   * strength of its new tier (pinning grants 1.0, demoting recomputes from
+   * the tier default). Refuses a no-op same-value change before writing
+   * anything. Writes a 'set_importance' audit row.
+   */
+  setImportance(
+    target: CorrectionTarget,
+    importance: Importance,
+    reason: string,
+    actor?: string,
+  ): { row: MemoryRow; correction: CorrectionRow } {
+    const row = this.resolveTarget(target);
+    if (row.importance === importance) {
+      throw new Error(`setImportance(): memory is already '${importance}' (no-op refused)`);
+    }
+    const ts = new Date().toISOString();
+    const strength = getInitialStrength(importance);
+    const apply = this.db.transaction(() => {
+      this.db.prepare("UPDATE memories SET importance = ?, strength = ? WHERE id = ?").run(importance, strength, row.id);
+      return this.appendCorrection("set_importance", row.body_hash, null, reason, ts, actor);
+    });
+    const correction = apply();
+    return { row: this.getById(row.id)!, correction };
   }
 
   insert(input: InsertMemoryInput): MemoryRow {
@@ -471,6 +560,53 @@ export class TenantStore {
     return this.db
       .prepare(`SELECT * FROM memories WHERE importance != 'pinned'${retractedClause}`)
       .all() as unknown as MemoryRow[];
+  }
+
+  /**
+   * Filtered, most-recent-first listing for the operator console browser.
+   * Fetches limit+1 rows to report truncation without a second COUNT query.
+   * All filtering stays inside the store: callers never hand-write SQL.
+   */
+  listMemories(query: MemoryListQuery): { rows: MemoryRow[]; truncated: boolean } {
+    const clauses: string[] = [];
+    const params: Array<string | number> = [];
+    if (query.importance && query.importance !== "all") {
+      clauses.push("importance = ?");
+      params.push(query.importance);
+    }
+    if (query.status === "retracted") {
+      clauses.push("retracted_at IS NOT NULL");
+    } else if (query.status !== "all") {
+      clauses.push("retracted_at IS NULL");
+    }
+    if (query.source) {
+      clauses.push("source = ?");
+      params.push(query.source);
+    }
+    if (query.search) {
+      clauses.push("text LIKE ? ESCAPE '\\'");
+      params.push(`%${likeEscape(query.search)}%`);
+    }
+    const where = clauses.length > 0 ? ` WHERE ${clauses.join(" AND ")}` : "";
+    const limit = query.limit ?? 200;
+    const rows = this.db
+      .prepare(`SELECT * FROM memories${where} ORDER BY occurred_at DESC LIMIT ?`)
+      .all(...params, limit + 1) as unknown as MemoryRow[];
+    const truncated = rows.length > limit;
+    return { rows: rows.slice(0, limit), truncated };
+  }
+
+  /** Aggregate counts for the console tenant index. */
+  tenantStats(): { total: number; live: number; retracted: number; pinned: number; nullEmbedding: number } {
+    const one = (sql: string): number =>
+      (this.db.prepare(sql).get() as { n: number }).n;
+    return {
+      total: one("SELECT COUNT(*) AS n FROM memories"),
+      live: one("SELECT COUNT(*) AS n FROM memories WHERE retracted_at IS NULL"),
+      retracted: one("SELECT COUNT(*) AS n FROM memories WHERE retracted_at IS NOT NULL"),
+      pinned: one("SELECT COUNT(*) AS n FROM memories WHERE importance = 'pinned' AND retracted_at IS NULL"),
+      nullEmbedding: one("SELECT COUNT(*) AS n FROM memories WHERE embedding IS NULL AND retracted_at IS NULL"),
+    };
   }
 
   /** Total row count, including retracted ones (retraction is a soft delete). */

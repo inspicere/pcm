@@ -54,7 +54,7 @@ branches — upstream builds TS its own way and doesn't need it.
    (audit 12.M3, latent). Cap invariants inside the slot budget.
 4. `pr/feat-real-supersession` — **later, from the corrections work.** A real supersession/tombstone
    module to replace the deleted fixture rewriter. This is the flagship upstream contribution;
-   design source: `docs/specs/2026-09-13-pcm-corrections-design.md` (M2b) in laima.
+   design source: `server/docs/2026-09-13-pcm-corrections-design.md` (M2b) — implemented on laima/main.
 
 ## Work map (Laima-side branches, roughly dependency order)
 

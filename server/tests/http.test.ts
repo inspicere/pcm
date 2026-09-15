@@ -35,6 +35,9 @@ beforeAll(async () => {
       PCM_HOST: "127.0.0.1",
       PCM_DATA_DIR: dataDir,
       PCM_TOKENS: `alice=${ALICE},bob=${BOB}`,
+      PCM_OPERATOR_TOKENS: "ops=ops-test-token",
+      PCM_OPERATOR_HOST: "127.0.0.1",
+      PCM_OPERATOR_PORT: "3796",
     },
     stdout: "inherit",
     stderr: "inherit",
@@ -64,7 +67,7 @@ describe("pcm-server http", () => {
     const json = await res.json();
     expect(json.status).toBe("ok");
     expect(json.embedding).toBe("fallback");
-    expect(json.schemaVersion).toBe(2);
+    expect(json.schemaVersion).toBe(3);
     expect(json.pgvector).toBe("disabled");
     expect(json.pgvectorHost).toBeNull();
     expect(json.tenants.sort()).toEqual(["alice", "bob"]);
