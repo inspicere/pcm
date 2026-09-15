@@ -53,6 +53,14 @@ RSYNC_FLAGS=(-a --delete
 # Dockerfile, bun.lock and .gitignore survive the sync.
 rsync "${RSYNC_FLAGS[@]}" "$TMP/server/" "$TARGET/"
 
+# Import re-point: the fork's server imports pcm-core as ../../src/index.ts
+# (core lives at the repo root there). In the deploy tree pcm-core is the
+# vendored copy at vendor/pcm-core/, one level up from src/.
+if [[ "$DRY_RUN" != "1" ]]; then
+  grep -rl --include='*.ts' '\.\./\.\./src/index\.ts' "$TARGET/src" "$TARGET/tests" "$TARGET/tools" 2>/dev/null \
+    | xargs -r sed -i 's#\.\./\.\./src/index\.ts#../vendor/pcm-core/index.ts#g'
+fi
+
 # --- pcm-core -> vendor/pcm-core/{core,schema,index.ts,LICENSE} --------------
 # The vendored index.ts drops the './graph' re-export (graph/ is not vendored);
 # that one-line filter is the only transformation, matching the existing layout.
