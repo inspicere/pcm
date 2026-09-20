@@ -99,4 +99,22 @@ describe("PCM Standalone Engine Tests", () => {
     expect(markdown).toContain("[SITUATIONAL CONTEXT: Recent Decisions & Context]");
     expect(markdown.length).toBeLessThan(500); // well under 125 tokens
   });
+
+  test("calculateDecayedStrength returns the floor, not NaN, for non-finite inputs", () => {
+    const init = getInitialStrength("default");
+
+    for (const garbage of [Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(calculateDecayedStrength(init, garbage)).toBe(0.01);
+      expect(Number.isNaN(calculateDecayedStrength(init, garbage))).toBe(false);
+    }
+    // NaN can also arrive through the savings-effect term
+    expect(calculateDecayedStrength(init, 30 * 24 * 60 * 60 * 1000, Number.NaN)).toBe(0.01);
+    // pinned still wins regardless of inputs
+    expect(calculateDecayedStrength(1.0, Number.NaN, 0, "pinned")).toBe(1.0);
+  });
+
+  test("future-dated elapsed clamps to zero, full strength (pinned by design)", () => {
+    const init = getInitialStrength("default");
+    expect(calculateDecayedStrength(init, -30 * 24 * 60 * 60 * 1000)).toBe(init);
+  });
 });
